@@ -1,0 +1,13 @@
+{
+  "tasks": {
+    "build": "deno run --allow-read --allow-net --allow-write --allow-env --allow-run ./scripts/build.js",
+    "server": "deno run --allow-read --allow-net src/server.js",
+    "buildServe": "deno task build && deno task server",
+    "test": "deno task build && deno test --allow-read --allow-net --allow-write --allow-run --trace-leaks",
+    "jsdoc": "jsdoc src/history.js src/balance.js src/db.js src/mod.js"
+  },
+  "imports": {
+    "@oak/oak": "jsr:@oak/oak@^17.0.0",
+    "@tajpouria/cors": "jsr:@tajpouria/cors@^1.2.1"
+  }
+}
