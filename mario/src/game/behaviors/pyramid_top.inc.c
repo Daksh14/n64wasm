@@ -15,14 +15,10 @@
  * Spawn the four pillars' touch detectors.
  */
 void bhv_pyramid_top_init(void) {
-    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector,
-                              1789, 1024, 764, 0, 0, 0);
-    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector,
-                              1789, 896, -2579, 0, 0, 0);
-    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector,
-                              -5883, 1024, -2579, 0, 0, 0);
-    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector,
-                              -5883, 1024, 764, 0, 0, 0);
+    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector,  1789, 1024,   764, 0, 0, 0);
+    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector,  1789,  896, -2579, 0, 0, 0);
+    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector, -5883, 1024, -2579, 0, 0, 0);
+    spawn_object_abs_with_rot(o, 0, MODEL_NONE, bhvPyramidPillarTouchDetector, -5883, 1024,   764, 0, 0, 0);
 }
 
 /**
@@ -35,7 +31,7 @@ void bhv_pyramid_top_spinning(void) {
 
     // At first, move upward smoothly without rotating.
     if (o->oTimer < 60) {
-        o->oPosY = o->oHomeY + absf_2(sins(o->oTimer * 0x2000) * 10.0f);
+        o->oPosY = o->oHomeY + absf(sins(o->oTimer * 0x2000) * 10.0f);
     } else {
         // Then, rotate at an accelerating rate, and move upward at a constant rate.
         o->oAngleVelYaw += 0x100;
@@ -71,7 +67,7 @@ void bhv_pyramid_top_explode(void) {
     struct Object *pyramidFragment;
     s16 i;
 
-    spawn_mist_particles_variable(0, 0, 690.0f);
+    spawn_mist_particles_variable(0, 0, 690);
 
     // Generate 30 pyramid fragments with random properties.
     for (i = 0; i < 30; i++) {
@@ -144,7 +140,7 @@ void bhv_pyramid_top_fragment_loop(void) {
  */
 void bhv_pyramid_pillar_touch_detector_loop(void) {
     cur_obj_become_tangible();
-    if (obj_check_if_collided_with_object(o, gMarioObject) == TRUE) {
+    if (obj_check_if_collided_with_object(o, gMarioObject)) {
         // Increase the pyramid top's count of pillars touched.
         o->parentObj->oPyramidTopPillarsTouched++;
         o->activeFlags = ACTIVE_FLAG_DEACTIVATED;

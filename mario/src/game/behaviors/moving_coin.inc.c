@@ -46,7 +46,7 @@ void moving_coin_flicker(void) {
 }
 
 void coin_collected(void) {
-    spawn_object(o, MODEL_SPARKLES, bhvGoldenCoinSparkles);
+    spawn_object(o, MODEL_SPARKLES, bhvCoinSparklesSpawner);
     o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
 }
 
@@ -80,18 +80,22 @@ void bhv_moving_yellow_coin_loop(void) {
             moving_coin_flicker();
             break;
 
-        case MOV_YCOIN_ACT_LAVA_DEATH:
-            o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
+        case OBJ_ACT_LAVA_DEATH:
+#ifdef COIN_LAVA_FLICKER
+            moving_coin_flicker();
+#else
+            obj_mark_for_deletion(o);
+#endif
             break;
 
-        case MOV_YCOIN_ACT_DEATH_PLANE_DEATH:
-            o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
+        case OBJ_ACT_DEATH_PLANE_DEATH:
+            obj_mark_for_deletion(o);
             break;
     }
 
     if (o->oInteractStatus & INT_STATUS_INTERACTED) {
         coin_collected();
-        o->oInteractStatus = 0;
+        o->oInteractStatus = INT_STATUS_NONE;
     }
 }
 
@@ -122,10 +126,10 @@ void bhv_moving_blue_coin_loop(void) {
                     cur_obj_play_sound_2(SOUND_GENERAL_COIN_DROP);
                 }
             } else {
-                o->oForwardVel *= 0.98;
+                o->oForwardVel *= 0.98f;
             }
 
-            if (o->oForwardVel > 75.0) {
+            if (o->oForwardVel > 75.0f) {
                 o->oForwardVel = 75.0f;
             }
 
@@ -135,14 +139,14 @@ void bhv_moving_blue_coin_loop(void) {
 
     if (o->oInteractStatus & INT_STATUS_INTERACTED) {
         coin_collected();
-        o->oInteractStatus = 0;
+        o->oInteractStatus = INT_STATUS_NONE;
     }
 }
 
 void bhv_blue_coin_sliding_jumping_init(void) {
-    o->oGravity = 3.0;
-    o->oFriction = 0.98;
-    o->oBuoyancy = 1.5;
+    o->oGravity = 3.0f;
+    o->oFriction = 0.98f;
+    o->oBuoyancy = 1.5f;
 
     obj_set_hitbox(o, &sMovingBlueCoinHitbox);
 }
@@ -150,7 +154,7 @@ void bhv_blue_coin_sliding_jumping_init(void) {
 void blue_coin_sliding_away_from_mario(void) {
     s16 collisionFlags;
 
-    o->oForwardVel = 15.0;
+    o->oForwardVel = 15.0f;
     o->oMoveAngleYaw = o->oAngleToMario + 0x8000;
 
     if (coin_step(&collisionFlags)) {
@@ -158,11 +162,11 @@ void blue_coin_sliding_away_from_mario(void) {
     }
 
     if (collisionFlags & OBJ_COL_FLAG_HIT_WALL) {
-        o->oAction = 3;
+        o->oAction = MOV_BCOIN_ACT_STOPPED;
     }
 
     if (!is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 1000)) {
-        o->oAction = 2;
+        o->oAction = MOV_BCOIN_ACT_SLOWING_DOWN;
     }
 }
 
@@ -171,12 +175,12 @@ void blue_coin_sliding_slow_down(void) {
 
     coin_step(&collisionFlags);
 
-    if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 500) == TRUE) {
-        o->oAction = 1;
+    if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 500)) {
+        o->oAction = MOV_BCOIN_ACT_MOVING;
     }
 
     if (o->oTimer > 150) {
-        o->oAction = 3;
+        o->oAction = MOV_BCOIN_ACT_STOPPED;
     }
 }
 
@@ -184,46 +188,50 @@ void bhv_blue_coin_sliding_loop(void) {
     s16 collisionFlags;
 
     switch (o->oAction) {
-        case 0:
-            if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 500) == TRUE) {
-                o->oAction = 1;
+        case MOV_BCOIN_ACT_STILL:
+            if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 500)) {
+                o->oAction = MOV_BCOIN_ACT_MOVING;
             }
 
             set_object_visibility(o, 3000);
             break;
 
-        case 1:
+        case MOV_BCOIN_ACT_MOVING:
             blue_coin_sliding_away_from_mario();
             break;
 
-        case 2:
+        case MOV_BCOIN_ACT_SLOWING_DOWN:
             blue_coin_sliding_slow_down();
             set_object_visibility(o, 3000);
             break;
 
-        case 3:
+        case MOV_BCOIN_ACT_STOPPED:
             coin_step(&collisionFlags);
             if (o->oTimer > 60) {
-                o->oAction = 4;
+                o->oAction = MOV_BCOIN_ACT_FLICKERING;
             }
             break;
 
-        case 4:
+        case MOV_BCOIN_ACT_FLICKERING:
             moving_coin_flicker();
             break;
 
-        case 100:
-            o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
+        case OBJ_ACT_LAVA_DEATH:
+#ifdef COIN_LAVA_FLICKER
+            o->oAction = MOV_BCOIN_ACT_FLICKERING;
+#else
+            obj_mark_for_deletion(o);
+#endif
             break;
 
-        case 101:
-            o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
+        case OBJ_ACT_DEATH_PLANE_DEATH:
+            obj_mark_for_deletion(o);
             break;
     }
 
     if (o->oInteractStatus & INT_STATUS_INTERACTED) {
         coin_collected();
-        o->oInteractStatus = 0;
+        o->oInteractStatus = INT_STATUS_NONE;
     }
 }
 
@@ -231,43 +239,43 @@ void bhv_blue_coin_jumping_loop(void) {
     s16 collisionFlags;
 
     switch (o->oAction) {
-        case 0:
+        case MOV_BCOIN_ACT_STILL:
             if (o->oTimer == 0) {
                 cur_obj_become_intangible();
-                o->oVelY = 50.0;
+                o->oVelY = 50.0f;
             }
 
             object_step();
 
             if (o->oTimer == 15) {
                 cur_obj_become_tangible();
-                o->oAction = 1;
+                o->oAction = MOV_BCOIN_ACT_MOVING;
             }
             break;
 
-        case 1:
+        case MOV_BCOIN_ACT_MOVING:
             blue_coin_sliding_away_from_mario();
             break;
 
-        case 2:
+        case MOV_BCOIN_ACT_SLOWING_DOWN:
             blue_coin_sliding_slow_down();
             set_object_visibility(o, 3000);
             break;
 
-        case 3:
+        case MOV_BCOIN_ACT_STOPPED:
             coin_step(&collisionFlags);
             if (o->oTimer > 60) {
-                o->oAction = 4;
+                o->oAction = MOV_BCOIN_ACT_FLICKERING;
             }
             break;
 
-        case 4:
+        case MOV_BCOIN_ACT_FLICKERING:
             moving_coin_flicker();
             break;
     }
 
     if (o->oInteractStatus & INT_STATUS_INTERACTED) {
         coin_collected();
-        o->oInteractStatus = 0;
+        o->oInteractStatus = INT_STATUS_NONE;
     }
 }

@@ -45,21 +45,21 @@ void bhv_wf_elevator_tower_platform_loop(void) {
 }
 
 void bhv_wf_sliding_tower_platform_loop(void) {
-    s32 sp24 = o->oPlatformUnk110 / o->oPlatformUnk10C;
+    s32 moveTimer = o->oPlatformWFTowerMoveDistance / o->oPlatformWFTowerForwardVel;
 
     switch (o->oAction) {
         case 0:
-            if (o->oTimer > sp24) {
+            if (o->oTimer > moveTimer) {
                 o->oAction++;
             }
-            o->oForwardVel = -o->oPlatformUnk10C;
+            o->oForwardVel = -o->oPlatformWFTowerForwardVel;
             break;
 
         case 1:
-            if (o->oTimer > sp24) {
+            if (o->oTimer > moveTimer) {
                 o->oAction = 0;
             }
-            o->oForwardVel = o->oPlatformUnk10C;
+            o->oForwardVel = o->oPlatformWFTowerForwardVel;
             break;
     }
 
@@ -74,39 +74,36 @@ void bhv_wf_sliding_tower_platform_loop(void) {
 }
 
 void spawn_and_init_wf_platforms(s16 a, const BehaviorScript *bhv) {
-    s16 yaw;
     struct Object *platform = spawn_object(o, a, bhv);
 
-    yaw = o->oPlatformSpawnerUnkF4 * o->oPlatformSpawnerUnkFC + o->oPlatformSpawnerUnkF8;
+    s16 yaw = ((o->oPlatformSpawnerWFTowerPlatformNum * o->oPlatformSpawnerWFTowerDYaw) + o->oPlatformSpawnerWFTowerYawOffset);
 
     platform->oMoveAngleYaw = yaw;
-    platform->oPosX += o->oPlatformSpawnerUnk100 * sins(yaw);
-    platform->oPosY += 100 * o->oPlatformSpawnerUnkF4;
-    platform->oPosZ += o->oPlatformSpawnerUnk100 * coss(yaw);
-    platform->oPlatformUnk110 = o->oPlatformSpawnerUnk104;
-    platform->oPlatformUnk10C = o->oPlatformSpawnerUnk108;
+    platform->oPosX += o->oPlatformSpawnerWFTowerRadius * sins(yaw);
+    platform->oPosY += 100 * o->oPlatformSpawnerWFTowerPlatformNum;
+    platform->oPosZ += o->oPlatformSpawnerWFTowerRadius * coss(yaw);
+    platform->oPlatformWFTowerMoveDistance = o->oPlatformSpawnerWFTowerMoveDistance;
+    platform->oPlatformWFTowerForwardVel = o->oPlatformSpawnerWFTowerForwardVel;
 
-    o->oPlatformSpawnerUnkF4++;
+    o->oPlatformSpawnerWFTowerPlatformNum++;
 }
 
 void spawn_wf_platform_group(void) {
-    UNUSED s32 unused = 8;
+    o->oPlatformSpawnerWFTowerPlatformNum = 0;
+    o->oPlatformSpawnerWFTowerYawOffset = 0;
+    o->oPlatformSpawnerWFTowerDYaw = 0x2000;
+    o->oPlatformSpawnerWFTowerRadius = 704.0f;
+    o->oPlatformSpawnerWFTowerMoveDistance = 380.0f;
+    o->oPlatformSpawnerWFTowerForwardVel = 3.0f;
 
-    o->oPlatformSpawnerUnkF4 = 0;
-    o->oPlatformSpawnerUnkF8 = 0;
-    o->oPlatformSpawnerUnkFC = 0x2000;
-    o->oPlatformSpawnerUnk100 = 704.0f;
-    o->oPlatformSpawnerUnk104 = 380.0f;
-    o->oPlatformSpawnerUnk108 = 3.0f;
-
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWFSolidTowerPlatform);
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWFSlidingTowerPlatform);
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWFSolidTowerPlatform);
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWFSlidingTowerPlatform);
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWFSolidTowerPlatform);
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWFSlidingTowerPlatform);
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWFSolidTowerPlatform);
-    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM_ELEVATOR, bhvWFElevatorTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWfSolidTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWfSlidingTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWfSolidTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWfSlidingTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWfSolidTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWfSlidingTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM, bhvWfSolidTowerPlatform);
+    spawn_and_init_wf_platforms(MODEL_WF_TOWER_SQUARE_PLATORM_ELEVATOR, bhvWfElevatorTowerPlatform);
 }
 
 void bhv_tower_platform_group_loop(void) {

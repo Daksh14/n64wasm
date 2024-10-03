@@ -20,7 +20,7 @@ void bhv_recovery_heart_loop(void) {
             o->oSpinningHeartPlayedSound++;
         }
 
-        o->oAngleVelYaw = (s32)(200.0f * gMarioStates[0].forwardVel) + 1000;
+        o->oAngleVelYaw = (s32)(200.0f * gMarioState->forwardVel) + 1000;
     } else {
         o->oSpinningHeartPlayedSound = 0;
 
@@ -31,7 +31,10 @@ void bhv_recovery_heart_loop(void) {
     }
 
     if ((o->oSpinningHeartTotalSpin += o->oAngleVelYaw) >= 0x10000) {
-        gMarioStates[0].healCounter += 4;
+        gMarioState->healCounter += 4;
+#ifdef BREATH_METER
+        gMarioState->breathCounter += 4;
+#endif
         o->oSpinningHeartTotalSpin -= 0x10000;
     }
 

@@ -1,21 +1,21 @@
 // racing_penguin.inc.c
 
 struct RacingPenguinData {
-    s16 dialogID;
+    s16 text;
     f32 radius;
     f32 height;
 };
 
 static struct RacingPenguinData sRacingPenguinData[] = {
-    /* RACING_PENGUIN_BP_THIN */ { DIALOG_055, 200.0f, 200.0f },
-    /* RACING_PENGUIN_BP_FAT  */ { DIALOG_164, 350.0f, 250.0f },
+    { DIALOG_055, 200.0f, 200.0f },
+    { DIALOG_164, 350.0f, 250.0f },
 };
 
 void bhv_racing_penguin_init(void) {
     if (gMarioState->numStars == 120) {
         cur_obj_scale(8.0f);
         o->header.gfx.scale[1] = 5.0f;
-        o->oBhvParams2ndByte = RACING_PENGUIN_BP_FAT;
+        o->oBehParams2ndByte = 1;
     }
 }
 
@@ -27,7 +27,7 @@ static void racing_penguin_act_wait_for_mario(void) {
 }
 
 static void racing_penguin_act_show_init_text(void) {
-    s32 response = obj_update_race_proposition_dialog(sRacingPenguinData[o->oBhvParams2ndByte].dialogID);
+    s32 response = obj_update_race_proposition_dialog(sRacingPenguinData[o->oBehParams2ndByte].text);
 
     if (response == DIALOG_RESPONSE_YES) {
         struct Object *child;
@@ -60,7 +60,7 @@ static void racing_penguin_act_prepare_for_race(void) {
 }
 
 static void racing_penguin_act_race(void) {
-    if (cur_obj_follow_path(0) == PATH_REACHED_END) {
+    if (cur_obj_follow_path() == PATH_REACHED_END) {
         o->oRacingPenguinReachedBottom = TRUE;
         o->oAction = RACING_PENGUIN_ACT_FINISH_RACE;
     } else {
@@ -131,27 +131,21 @@ static void racing_penguin_act_show_final_text(void) {
                 }
             }
         } else {
-            cur_obj_init_animation_with_sound(0);
+            cur_obj_init_animation_with_sound(PENGUIN_ANIM_WALK);
 
-#ifndef VERSION_JP
-            play_penguin_walking_sound(1);
-#endif
+            play_penguin_walking_sound(PENGUIN_SOUND_WALK_BIG);
 
             o->oForwardVel = 4.0f;
         }
     } else if (o->oRacingPenguinFinalTextbox > 0) {
         s32 textResult;
-        if ((textResult = cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_UP,
+        if ((textResult = cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_UP, 
             DIALOG_FLAG_TURN_TO_MARIO, CUTSCENE_DIALOG, o->oRacingPenguinFinalTextbox))) {
             o->oRacingPenguinFinalTextbox = -1;
             o->oTimer = 0;
         }
     } else if (o->oRacingPenguinMarioWon) {
-#ifdef VERSION_JP
-        spawn_default_star(-7339.0f, -5700.0f, -6774.0f);
-#else
         cur_obj_spawn_star_at_y_offset(-7339.0f, -5700.0f, -6774.0f, 200.0f);
-#endif
         o->oRacingPenguinMarioWon = FALSE;
     }
 }
@@ -182,8 +176,8 @@ void bhv_racing_penguin_update(void) {
 
     cur_obj_move_standard(78);
     cur_obj_align_gfx_with_floor();
-    cur_obj_push_mario_away_from_cylinder(sRacingPenguinData[o->oBhvParams2ndByte].radius,
-                                          sRacingPenguinData[o->oBhvParams2ndByte].height);
+    cur_obj_push_mario_away_from_cylinder(sRacingPenguinData[o->oBehParams2ndByte].radius,
+                                          sRacingPenguinData[o->oBehParams2ndByte].height);
 }
 
 void bhv_penguin_race_finish_line_update(void) {

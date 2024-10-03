@@ -2,20 +2,20 @@
 
 void bhv_flamethrower_flame_loop(void) {
     f32 scale;
-    s32 sp18;
+    s32 remainingTime;
 
     if (o->oTimer == 0) {
         o->oAnimState = (s32)(random_float() * 10.0f);
         obj_translate_xyz_random(o, 10.0f);
     }
 
-    if (o->oBhvParams2ndByte == 2) {
-        scale = o->oTimer * (o->oForwardVel - 6.0f) / 100.0 + 2.0;
+    if (o->oBehParams2ndByte == FLAMETHROWER_BP_SLOW) {
+        scale = o->oTimer * (o->oForwardVel - 6.0f) / 100.0f + 2.0f;
     } else {
-        scale = o->oTimer * (o->oForwardVel - 20.0) / 100.0 + 1.0;
+        scale = o->oTimer * (o->oForwardVel - 20.0f) / 100.0f + 1.0f;
     }
 
-    if (o->oBhvParams2ndByte == 3) {
+    if (o->oBehParams2ndByte == FLAMETHROWER_BP_TALL_HITBOX) {
         o->hitboxHeight = 200.0f;
         o->hitboxDownOffset = 150.0f;
         o->oVelY = -28.0f;
@@ -27,68 +27,66 @@ void bhv_flamethrower_flame_loop(void) {
             o->oPosY = o->oFloorHeight + 25.0f * scale;
         }
 
-        sp18 = o->parentObj->oFlameThowerFlameUnk110 / 1.2;
+        remainingTime = o->parentObj->oFlameThowerTimeRemaining / 1.2f;
     } else {
-        sp18 = o->parentObj->oFlameThowerFlameUnk110;
+        remainingTime = o->parentObj->oFlameThowerTimeRemaining;
     }
 
     cur_obj_scale(scale);
 
-    if (o->oBhvParams2ndByte == 4) {
+    if (o->oBehParams2ndByte == FLAMETHROWER_BP_UPWARDS) {
         o->oPosY += o->oForwardVel; // weird?
     } else {
         cur_obj_move_using_fvel_and_gravity();
     }
 
-    if (o->oTimer > sp18) {
+    if (o->oTimer > remainingTime) {
         obj_mark_for_deletion(o);
     }
 
-    o->oInteractStatus = 0;
+    o->oInteractStatus = INT_STATUS_NONE;
 }
 
 void bhv_flamethrower_loop(void) {
-    struct Object *flame;
-    f32 flameVel;
-    s32 sp34;
-    s32 model;
-    UNUSED u8 filler[8];
-
-    if (o->oAction == 0) {
-        if ((gCurrLevelNum != LEVEL_BBH || gMarioOnMerryGoRound == TRUE)
-            && o->oDistanceToMario < 2000.0f) {
-            o->oAction++;
+    if (o->oAction == FLAMETHROWER_ACT_IDLE) {
+#ifdef ENABLE_VANILLA_LEVEL_SPECIFIC_CHECKS
+        if (gCurrLevelNum != LEVEL_BBH || gMarioOnMerryGoRound)
+#endif
+        {
+            if (o->oDistanceToMario < 2000.0f) {
+                o->oAction = FLAMETHROWER_ACT_BLOW_FIRE;
+            }
         }
-    } else if (o->oAction == 1) {
-        model = MODEL_RED_FLAME;
-        flameVel = 95.0f;
+    } else if (o->oAction == FLAMETHROWER_ACT_BLOW_FIRE) {
+        ModelID32 model = MODEL_RED_FLAME;
+        f32 flameVel = 95.0f;
 
-        if (o->oBhvParams2ndByte == 1) {
+        if (o->oBehParams2ndByte == FLAMETHROWER_BP_BLUE) {
             model = MODEL_BLUE_FLAME;
         }
 
-        if (o->oBhvParams2ndByte == 2) {
+        if (o->oBehParams2ndByte == FLAMETHROWER_BP_SLOW) {
             flameVel = 50.0f;
         }
 
-        sp34 = 1;
+        f32 flameTimeRemaining = 1;
 
         if (o->oTimer < 60) {
-            sp34 = 15;
+            flameTimeRemaining = 15;
         } else if (o->oTimer < 74) {
-            sp34 = 75 - o->oTimer; // Range: [15..2]
+            flameTimeRemaining = 75 - o->oTimer; // Range: [15..2]
         } else {
-            o->oAction++;
+            o->oAction = FLAMETHROWER_ACT_COOLDOWN;
         }
 
-        o->oFlameThowerUnk110 = sp34;
+        o->oFlameThowerTimeRemaining = flameTimeRemaining;
 
-        flame = spawn_object_relative(o->oBhvParams2ndByte, 0, 0, 0, o, model, bhvFlamethrowerFlame);
+        struct Object *flame = spawn_object_relative(o->oBehParams2ndByte, 0, 0, 0, o, model, bhvFlamethrowerFlame);
         flame->oForwardVel = flameVel;
 
         cur_obj_play_sound_1(SOUND_AIR_BLOW_FIRE);
     } else if (o->oTimer > 60) {
-        o->oAction = 0;
+        o->oAction = FLAMETHROWER_ACT_IDLE;
     }
 }
 

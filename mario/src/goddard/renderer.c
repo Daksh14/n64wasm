@@ -84,11 +84,11 @@ struct DynListBankInfo {
 };
 
 // bss
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
 static OSMesgQueue D_801BE830; // controller msg queue
 static OSMesg D_801BE848[10];
 u8 EUpad1[0x40];
-static OSMesgQueue D_801BE8B0;
+UNUSED static OSMesgQueue D_801BE8B0;
 static OSMesgQueue sGdDMAQueue; // @ 801BE8C8
 // static u32 unref_801be870[16];
 // static u32 unref_801be8e0[25];
@@ -103,8 +103,8 @@ static struct ObjView *D_801BE994; // store if View flag 0x40 set
 u8 EUpad4[0x88];
 #endif
 static OSContStatus D_801BAE60[4];
-static OSContPad sGdContPads[4];    // @ 801BAE70
-static OSContPad sPrevFrameCont[4]; // @ 801BAE88
+static OSContPadEx sGdContPads[4];    // @ 801BAE70
+static OSContPadEx sPrevFrameCont[4]; // @ 801BAE88
 static u8 D_801BAEA0;
 static struct ObjGadget *sTimerGadgets[GD_NUM_TIMERS]; // @ 801BAEA8
 static u32 D_801BAF28;                                 // RAM addr offset?
@@ -167,7 +167,7 @@ static LookAt D_801BE7D0[3];
 static OSMesgQueue D_801BE830; // controller msg queue
 static OSMesg D_801BE848[10];
 UNUSED static u32 unref_801be870[16];
-static OSMesgQueue D_801BE8B0;
+UNUSED static OSMesgQueue D_801BE8B0;
 static OSMesgQueue sGdDMAQueue; // @ 801BE8C8
 UNUSED static u32 unref_801be8e0[25];
 static OSMesg sGdMesgBuf[1]; // @ 801BE944
@@ -201,7 +201,7 @@ static s32 D_801A86BC = 1;
 static s32 D_801A86C0 = 0; // gd_dl id for something?
 UNUSED static u32 unref_801a86C4 = 10;
 static s32 sMtxParamType = G_MTX_PROJECTION;
-static struct GdVec3f D_801A86CC = { 1.0f, 1.0f, 1.0f };
+UNUSED static struct GdVec3f D_801A86CC = { 1.0f, 1.0f, 1.0f };
 static struct ObjView *sActiveView = NULL;  // @ 801A86D8 current view? used when drawing dl
 static struct ObjView *sScreenView = NULL; // @ 801A86DC
 static struct ObjView *D_801A86E0 = NULL;
@@ -329,6 +329,7 @@ static Gfx gd_dl_star_common[] = {
     gsSPVertex(gd_vertex_star, 4, 0),
     gsSP2Triangles( 0,  1,  2, 0x0,  0,  2,  3, 0x0),
     gsSPTexture(0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_OFF),
+    gsDPPipeSync(),
     gsDPSetCombineMode(G_CC_SHADE, G_CC_SHADE),
     gsDPSetRenderMode(G_RM_AA_ZB_OPA_INTER, G_RM_NOOP2),
     gsSPEndDisplayList(),
@@ -516,6 +517,7 @@ static Gfx gd_dl_sparkle[] = {
     gsSPVertex(gd_vertex_sparkle, 4, 0),
     gsSP2Triangles(0,  1,  2, 0x0,  0,  2,  3, 0x0),
     gsSPTexture(0x0001, 0x0001, 0, G_TX_RENDERTILE, G_OFF),
+    gsDPPipeSync(),
     gsDPSetCombineMode(G_CC_SHADE, G_CC_SHADE),
     gsDPSetRenderMode(G_RM_AA_ZB_OPA_INTER, G_RM_NOOP2),
     gsSPEndDisplayList(),
@@ -858,6 +860,10 @@ f64 gd_sqrt_d(f64 x) {
     return sqrtf(x);
 }
 
+
+#if defined(ISVPRINT) || defined(UNF)
+#define stubbed_printf osSyncPrintf
+#else
 /**
  * Unused
  */
@@ -963,6 +969,7 @@ void gd_printf(const char *format, ...) {
         fatal_printf("printf too long");
     }
 }
+#endif
 
 /* 24A19C -> 24A1D4 */
 void gd_exit(UNUSED s32 code) {
@@ -980,7 +987,7 @@ void gd_free(void *ptr) {
 void *gd_allocblock(u32 size) {
     void *block; // 1c
 
-    size = ALIGN(size, 8);
+    size = ALIGN8(size);
     if ((sMemBlockPoolUsed + size) > sMemBlockPoolSize) {
         gd_printf("gd_allocblock(): Failed request: %dk (%d bytes)\n", size / 1024, size);
         gd_printf("gd_allocblock(): Heap usage: %dk (%d bytes) \n", sMemBlockPoolUsed / 1024,
@@ -998,7 +1005,7 @@ void *gd_allocblock(u32 size) {
 /* 24A318 -> 24A3E8 */
 void *gd_malloc(u32 size, u8 perm) {
     void *ptr; // 1c
-    size = ALIGN(size, 8);
+    size = ALIGN8(size);
     ptr = gd_request_mem(size, perm);
 
     if (ptr == NULL) {
@@ -1280,12 +1287,12 @@ void gd_vblank(void) {
 /**
  * Copies the player1 controller data from p1cont to sGdContPads[0].
  */
-void gd_copy_p1_contpad(OSContPad *p1cont) {
+void gd_copy_p1_contpad(OSContPadEx *p1cont) {
     u32 i;                                    // 24
     u8 *src = (u8 *) p1cont;             // 20
     u8 *dest = (u8 *) &sGdContPads[0]; // 1c
 
-    for (i = 0; i < sizeof(OSContPad); i++) {
+    for (i = 0; i < sizeof(OSContPadEx); i++) {
         dest[i] = src[i];
     }
 
@@ -1464,12 +1471,8 @@ struct GdDisplayList *create_child_gdl(s32 id, struct GdDisplayList *srcDl) {
     newDl = alloc_displaylist(id);
     newDl->parent = srcDl;
     cpy_remaining_gddl(newDl, srcDl);
-//! @bug No return statement, despite return value being used.
-//!      Goddard lucked out that `v0` return from alloc_displaylist()
-//!      is not overwriten, as that pointer is what should be returned
-#ifdef AVOID_UB
+
     return newDl;
-#endif
 }
 
 /* 24B7F8 -> 24BA48; orig name: func_8019D028 */
@@ -2003,7 +2006,7 @@ void gd_dl_flush_vertices(void) {
 /**
  * Unused - called by func_801A520C
  */
-static void func_801A01EC(void) {
+UNUSED static void func_801A01EC(void) {
     if (D_801BE8B0.validCount >= D_801BE8B0.msgCount) {
         osRecvMesg(&D_801BE8B0, &sGdDMACompleteMsg, OS_MESG_BLOCK);
     }
@@ -2013,7 +2016,7 @@ static void func_801A01EC(void) {
 /**
  * Unused - called by func_801A520C
  */
-static void func_801A025C(void) {
+UNUSED static void func_801A025C(void) {
     gGdFrameBufNum ^= 1;
     osViSwapBuffer(sScreenView->parent->colourBufs[gGdFrameBufNum]);
 }
@@ -2394,8 +2397,8 @@ void start_view_dl(struct ObjView *view) {
 void parse_p1_controller(void) {
     u32 i;
     struct GdControl *gdctrl = &gGdCtrl;
-    OSContPad *currInputs;
-    OSContPad *prevInputs;
+    OSContPadEx *currInputs;
+    OSContPadEx *prevInputs;
 
     // Copy current inputs to previous
     u8 *src = (u8 *) gdctrl;
@@ -2506,12 +2509,12 @@ void parse_p1_controller(void) {
         gdctrl->csrY = sScreenView->parent->upperLeft.y + sScreenView->parent->lowerRight.y - 32.0f;
     }
 
-    for (i = 0; i < sizeof(OSContPad); i++) {
+    for (i = 0; i < sizeof(OSContPadEx); i++) {
         ((u8 *) prevInputs)[i] = ((u8 *) currInputs)[i];
     }
 }
 
-void stub_renderer_4(f32 arg0) {
+UNUSED void stub_renderer_4(f32 arg0) {
     return;
 
     // dead code
@@ -2524,7 +2527,7 @@ void stub_renderer_4(f32 arg0) {
 /**
  * Unused
  */
-void Unknown801A32F4(s32 arg0) {
+UNUSED void Unknown801A32F4(s32 arg0) {
     D_801BD774 = GD_LOWER_24(arg0) + D_801BAF28;
 }
 
@@ -2754,8 +2757,8 @@ s32 setup_view_buffers(const char *name, struct ObjView *view, UNUSED s32 ulx, U
                 view->colourBufs[1] = view->colourBufs[0];
             }
 
-            view->colourBufs[0] = (void *) ALIGN((uintptr_t) view->colourBufs[0], 64);
-            view->colourBufs[1] = (void *) ALIGN((uintptr_t) view->colourBufs[1], 64);
+            view->colourBufs[0] = (void *) ALIGN64((uintptr_t) view->colourBufs[0]);
+            view->colourBufs[1] = (void *) ALIGN64((uintptr_t) view->colourBufs[1]);
             stop_memtracker(memtrackerName);
 
             if (view->colourBufs[0] == NULL || view->colourBufs[1] == NULL) {
@@ -2775,7 +2778,7 @@ s32 setup_view_buffers(const char *name, struct ObjView *view, UNUSED s32 ulx, U
                 if (view->zbuf == NULL) {
                     fatal_printf("Not enough DRAM for Z buffer\n");
                 }
-                view->zbuf = (void *) ALIGN((uintptr_t) view->zbuf, 64);
+                view->zbuf = (void *) ALIGN64((uintptr_t) view->zbuf);
             }
             stop_memtracker(memtrackerName);
         } else {
@@ -2792,27 +2795,20 @@ s32 setup_view_buffers(const char *name, struct ObjView *view, UNUSED s32 ulx, U
         view->parent = D_801A86E0;
     }
 
-//! @bug No actual return, but the return value is used.
-//!      There is no obvious value to return. Since the function
-//!      doesn't use four of its parameters, this function may have
-//!      had a fair amount of its code commented out. In game, the
-//!      returned value is always 0, so the fix returns that value
-#ifdef AVOID_UB
     return 0;
-#endif
 }
 
 /* 252AF8 -> 252BAC; orig name: _InitControllers */
 void gd_init_controllers(void) {
-    OSContPad *p1cont = &sPrevFrameCont[0]; // 1c
+    OSContPadEx *p1cont = &sPrevFrameCont[0]; // 1c
     u32 i;                                  // 18
 
     osCreateMesgQueue(&D_801BE830, D_801BE848, ARRAY_COUNT(D_801BE848));
     osSetEventMesg(OS_EVENT_SI, &D_801BE830, (OSMesg) OS_MESG_SI_COMPLETE);
     osContInit(&D_801BE830, &D_801BAEA0, D_801BAE60);
-    osContStartReadData(&D_801BE830);
+    osContStartReadDataEx(&D_801BE830);
 
-    for (i = 0; i < sizeof(OSContPad); i++) {
+    for (i = 0; i < sizeof(OSContPadEx); i++) {
         ((u8 *) p1cont)[i] = 0;
     }
 }
@@ -2831,10 +2827,7 @@ void stub_renderer_6(UNUSED struct GdObj *obj) {
  * @return  an identifier of the menu just defined
  */
 long defpup(UNUSED const char *menufmt, ...) {
-    //! @bug no return; function was stubbed
-#ifdef AVOID_UB
    return 0;
-#endif
 }
 
 /**
@@ -3151,7 +3144,7 @@ void func_801A520C(void) {
 
     start_timer("1frame");
     start_timer("cpu");
-    stub_renderer_9();
+    // stub_renderer_9();
     reset_cur_dl_indices();
     parse_p1_controller();
     setup_timers();
@@ -3164,21 +3157,21 @@ void func_801A520C(void) {
     }
     split_timer("netupd");
     split_timer("cpu");
-    func_801A4808();
+    // func_801A4808();
     restart_timer("cpu");
-    func_801A025C();
+    // func_801A025C();
     update_cursor();
-    func_801A4918();
+    // func_801A4918();
     stop_timer("1frame");
     sTracked1FrameTime = get_scaled_timer_total("1frame");
     split_timer("cpu");
-    func_801A01EC();
+    // func_801A01EC();
 }
 
 /**
  * Unused
  */
-void Unknown801A5344(void) {
+UNUSED void Unknown801A5344(void) {
     if ((sActiveView = sScreenView) == NULL) {
         return;
     }
@@ -3189,8 +3182,8 @@ void Unknown801A5344(void) {
     gd_set_one_cycle();
     gd_enddlsplist_parent();
     func_801A4848(sScreenView->gdDlNum);
-    stub_renderer_9();
-    func_801A4808();
+    // stub_renderer_9();
+    // func_801A4808();
     sScreenView->gdDlNum = 0;
 }
 
@@ -3388,7 +3381,7 @@ union ObjVarVal *cvrt_val_to_kb(union ObjVarVal *dst, union ObjVarVal src) {
 }
 
 /* 254450 -> 254560 */
-void Unknown801A5C80(struct ObjGroup *parentGroup) {
+UNUSED void Unknown801A5C80(struct ObjGroup *parentGroup) {
     struct ObjLabel *label;      // 3c
     struct ObjGroup *debugGroup; // 38
 
@@ -3410,7 +3403,7 @@ void Unknown801A5C80(struct ObjGroup *parentGroup) {
 }
 
 /* 254560 -> 2547C8 */
-void Unknown801A5D90(struct ObjGroup *arg0) {
+UNUSED void Unknown801A5D90(struct ObjGroup *arg0) {
     struct ObjLabel *mtLabel;  // 254
     struct ObjGroup *labelgrp; // 250
     struct ObjView *memview;   // 24c
@@ -3475,11 +3468,10 @@ void Unknown801A5D90(struct ObjGroup *arg0) {
 }
 
 /* 2547C8 -> 254AC0 */
-void Unknown801A5FF8(struct ObjGroup *arg0) {
+UNUSED void Unknown801A5FF8(struct ObjGroup *arg0) {
     struct ObjView *menuview;      // 3c
     UNUSED struct ObjLabel *label; // 38
     struct ObjGroup *menugrp;      // 34
-    UNUSED u8 filler[8];
 
     d_start_group("menug");
     sMenuGadgets[0] = d_makeobj(D_GADGET, "menu0");
@@ -3825,7 +3817,7 @@ struct GdObj *load_dynlist(struct DynList *dynlist) {
 /**
  * Unused (not called)
  */
-void stub_renderer_20(UNUSED u32 a0) {
+UNUSED void stub_renderer_20(UNUSED u32 a0) {
 }
 
 /**
@@ -3927,5 +3919,5 @@ void func_801A71CC(struct ObjNet *net) {
 }
 
 /* 255EB0 -> 255EC0 */
-void stub_renderer_21(void) {
+UNUSED void stub_renderer_21(void) {
 }

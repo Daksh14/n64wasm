@@ -1,26 +1,20 @@
 // end_birds_1.inc.c
 
 void bhv_end_birds_1_loop(void) {
-    Vec3f sp34;
-    UNUSED f32 sp30 = random_float();
+    Vec3f pos;
 
     switch (o->oAction) {
-        case 0:
+        case END_BIRDS_ACT_INIT:
             cur_obj_scale(0.7f);
-            o->oIntroLakituUnk110 = -554.0f;
-            o->oIntroLakituUnk10C = 3044.0f;
-            o->oIntroLakituUnk108 = -1314.0f;
-            o->oAction++;
+            vec3f_set(&o->oIntroLakituEndBirds1DestVec, -554.0f, 3044.0f, -1314.0f);
+            o->oAction = END_BIRDS_ACT_ACTIVE;
             break;
-
-        case 1:
-            vec3f_set(sp34, o->oIntroLakituUnk110, o->oIntroLakituUnk10C,
-                      o->oIntroLakituUnk108);
-
+        case END_BIRDS_ACT_ACTIVE:
+            vec3f_copy(pos, &o->oIntroLakituEndBirds1DestVec);
             if (o->oTimer < 100) {
-                obj_rotate_towards_point(o, sp34, 0, 0, 0x20, 0x20);
+                obj_rotate_towards_point(o, pos, 0, 0, 0x20, 0x20);
             }
-            if ((o->oEndBirdUnk104 == 0.0f) && (o->oTimer == 0)) {
+            if ((o->oEndBirdCutsceneVars9PointX == 0.0f) && (o->oTimer == 0)) {
                 cur_obj_play_sound_2(SOUND_GENERAL_BIRDS_FLY_AWAY);
             }
             if (gCutsceneTimer == 0) {

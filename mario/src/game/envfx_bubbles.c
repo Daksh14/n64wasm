@@ -10,6 +10,7 @@
 #include "engine/behavior_script.h"
 #include "audio/external.h"
 #include "textures.h"
+#include "level_geo.h"
 
 /**
  * This file implements environment effects that are not snow:
@@ -24,9 +25,6 @@ s16 gEnvFxBubbleConfig[10];
 static Gfx *sGfxCursor; // points to end of display list for bubble particles
 static s32 sBubbleParticleCount;
 static s32 sBubbleParticleMaxCount;
-
-UNUSED s32 D_80330690 = 0;
-UNUSED s32 D_80330694 = 0;
 
 /// Template for a bubble particle triangle
 Vtx_t gBubbleTempVtx[3] = {
@@ -72,11 +70,9 @@ s32 random_flower_offset(void) {
  */
 void envfx_update_flower(Vec3s centerPos) {
     s32 i;
-    struct FloorGeometry *floorGeo; // unused
     s32 globalTimer = gGlobalTimer;
 
     s16 centerX = centerPos[0];
-    UNUSED s16 centerY = centerPos[1];
     s16 centerZ = centerPos[2];
 
     for (i = 0; i < sBubbleParticleMaxCount; i++) {
@@ -84,12 +80,11 @@ void envfx_update_flower(Vec3s centerPos) {
         if (!(gEnvFxBuffer + i)->isAlive) {
             (gEnvFxBuffer + i)->xPos = random_flower_offset() + centerX;
             (gEnvFxBuffer + i)->zPos = random_flower_offset() + centerZ;
-            (gEnvFxBuffer + i)->yPos = find_floor_height_and_data((gEnvFxBuffer + i)->xPos, 10000.0f,
-                                                                  (gEnvFxBuffer + i)->zPos, &floorGeo);
+            (gEnvFxBuffer + i)->yPos = find_floor_height((gEnvFxBuffer + i)->xPos, 10000.0f, (gEnvFxBuffer + i)->zPos);
             (gEnvFxBuffer + i)->isAlive = TRUE;
             (gEnvFxBuffer + i)->animFrame = random_float() * 5.0f;
         } else if (!(globalTimer & 3)) {
-            (gEnvFxBuffer + i)->animFrame += 1;
+            (gEnvFxBuffer + i)->animFrame++;
             if ((gEnvFxBuffer + i)->animFrame > 5) {
                 (gEnvFxBuffer + i)->animFrame = 0;
             }
@@ -152,11 +147,6 @@ void envfx_set_lava_bubble_position(s32 index, Vec3s centerPos) {
 void envfx_update_lava(Vec3s centerPos) {
     s32 i;
     s32 globalTimer = gGlobalTimer;
-    s8 chance;
-
-    UNUSED s16 centerX = centerPos[0];
-    UNUSED s16 centerY = centerPos[1];
-    UNUSED s16 centerZ = centerPos[2];
 
     for (i = 0; i < sBubbleParticleMaxCount; i++) {
         if (!(gEnvFxBuffer + i)->isAlive) {
@@ -171,7 +161,7 @@ void envfx_update_lava(Vec3s centerPos) {
         }
     }
 
-    if ((chance = (s32)(random_float() * 16.0f)) == 8) {
+    if (((s8)(s32)(random_float() * 16.0f)) == 8) {
         play_sound(SOUND_GENERAL_QUIET_BUBBLE2, gGlobalSoundSource);
     }
 }
@@ -203,8 +193,6 @@ void envfx_rotate_around_whirlpool(s32 *x, s32 *y, s32 *z) {
  * low or close to the center.
  */
 s32 envfx_is_whirlpool_bubble_alive(s32 index) {
-    UNUSED u8 filler[4];
-
     if ((gEnvFxBuffer + index)->bubbleY < gEnvFxBubbleConfig[ENVFX_STATE_DEST_Y] - 100) {
         return FALSE;
     }
@@ -266,8 +254,6 @@ void envfx_update_whirlpool(void) {
  * 1000 units away from the source or 1500 units above it.
  */
 s32 envfx_is_jestream_bubble_alive(s32 index) {
-    UNUSED u8 filler[4];
-
     if (!particle_is_laterally_close(index, gEnvFxBubbleConfig[ENVFX_STATE_SRC_X],
                                      gEnvFxBubbleConfig[ENVFX_STATE_SRC_Z], 1000)
         || gEnvFxBubbleConfig[ENVFX_STATE_SRC_Y] + 1500 < (gEnvFxBuffer + index)->yPos) {
@@ -454,6 +440,8 @@ void envfx_set_bubble_texture(s32 mode, s16 index) {
             imageArr = segmented_to_virtual(&bubble_ptr_0B006848);
             frame = 0;
             break;
+        default:
+            return;
     }
 
     gDPSetTextureImage(sGfxCursor++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 1, *(imageArr + frame));

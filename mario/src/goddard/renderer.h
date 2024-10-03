@@ -43,7 +43,12 @@ f32 get_time_scale(void);
 f64 gd_sin_d(f64 x);
 f64 gd_cos_d(f64 x);
 f64 gd_sqrt_d(f64 x);
+
+#if defined(ISVPRINT) || defined(UNF)
+#define gd_printf osSyncPrintf
+#else
 void gd_printf(const char *format, ...);
+#endif
 void gd_exit(UNUSED s32 code) NORETURN;
 void gd_free(void *ptr);
 void *gd_allocblock(u32 size);
@@ -56,7 +61,7 @@ void gdm_init(void *blockpool, u32 size);
 void gdm_setup(void);
 void gdm_maketestdl(s32 id);
 void gd_vblank(void);
-void gd_copy_p1_contpad(OSContPad *p1cont);
+void gd_copy_p1_contpad(OSContPadEx *p1cont);
 s32 gd_sfx_to_play(void);
 Gfx *gdm_gettestdl(s32 id);
 void gd_draw_rect(f32 ulx, f32 uly, f32 lrx, f32 lry);
@@ -104,19 +109,14 @@ void gd_create_perspective_matrix(f32 fovy, f32 aspect, f32 near, f32 far);
 s32 setup_view_buffers(const char *name, struct ObjView *view, UNUSED s32 ulx, UNUSED s32 uly,
                        UNUSED s32 lrx, UNUSED s32 lry);
 void gd_init_controllers(void);
-void stub_renderer_6(struct GdObj *obj); //apply to OBJ_TYPE_VIEWS
 long defpup(UNUSED const char *menufmt, ...);
 void menu_cb_control_type(u32);
 void menu_cb_recalibrate_controller(u32);
 void func_801A4438(f32 x, f32 y, f32 z);
-void stub_renderer_10(u32 arg0);
 void stub_draw_label_text(UNUSED char *s);
 void set_active_view(struct ObjView *v);
 void func_801A520C(void);
 void gd_init(void);
-void stub_renderer_12(s8 *arg0);    /* convert LE bytes to BE word? */
-void stub_renderer_13(UNUSED void *arg0);
-void stub_renderer_14(UNUSED s8 *arg0);    /* convert LE bytes to BE f32? */
 void init_pick_buf(s16 *buf, s32 len);
 void store_in_pickbuf(s16 data);
 s32 get_cur_pickbuf_offset(UNUSED s16 *arg0);

@@ -13,45 +13,43 @@ struct ObjectHitbox sMrBlizzardHitbox = {
     /* hurtboxHeight:     */ 170,
 };
 
+static struct SpawnParticlesInfo sMrBlizzardParticlesInfo = {
+    /* behParam:        */ 0,
+    /* count:           */ 6,
+    /* model:           */ MODEL_WHITE_PARTICLE,
+    /* offsetY:         */ 0,
+    /* forwardVelBase:  */ 5,
+    /* forwardVelRange: */ 5,
+    /* velYBase:        */ 10,
+    /* velYRange:       */ 10,
+    /* gravity:         */ -3,
+    /* dragStrength:    */ 0,
+    /* sizeBase:        */ 3.0f,
+    /* sizeRange:       */ 5.0f,
+};
+
 // Mr. Blizzard particle spawner.
-void mr_blizzard_spawn_white_particles(s8 count, s8 offsetY, s8 forwardVelBase, s8 velYBase,
-                                       s8 sizeBase) {
-    static struct SpawnParticlesInfo D_80331A00 = {
-        /* bhvParam:        */ 0,
-        /* count:           */ 6,
-        /* model:           */ MODEL_WHITE_PARTICLE,
-        /* offsetY:         */ 0,
-        /* forwardVelBase:  */ 5,
-        /* forwardVelRange: */ 5,
-        /* velYBase:        */ 10,
-        /* velYRange:       */ 10,
-        /* gravity:         */ -3,
-        /* dragStrength:    */ 0,
-        /* sizeBase:        */ 3.0f,
-        /* sizeRange:       */ 5.0f,
-    };
-
-    D_80331A00.count = count;
-    D_80331A00.offsetY = offsetY;
-    D_80331A00.forwardVelBase = forwardVelBase;
-    D_80331A00.velYBase = velYBase;
-    D_80331A00.sizeBase = sizeBase;
-
-    cur_obj_spawn_particles(&D_80331A00);
+void mr_blizzard_spawn_white_particles(s8 count, s8 offsetY, s8 forwardVelBase, s8 velYBase, s8 sizeBase) {
+    sMrBlizzardParticlesInfo.count = count;
+    sMrBlizzardParticlesInfo.offsetY = offsetY;
+    sMrBlizzardParticlesInfo.forwardVelBase = forwardVelBase;
+    sMrBlizzardParticlesInfo.velYBase = velYBase;
+    sMrBlizzardParticlesInfo.sizeBase = sizeBase;
+    cur_obj_spawn_particles(&sMrBlizzardParticlesInfo);
 }
 
 /**
  * Mr. Blizzard initialization function.
  */
 void bhv_mr_blizzard_init(void) {
-    if (o->oBhvParams2ndByte == MR_BLIZZARD_STYPE_JUMPING) {
+    if (o->oBehParams2ndByte == MR_BLIZZARD_STYPE_JUMPING) {
         // Jumping Mr. Blizzard.
         o->oAction = MR_BLIZZARD_ACT_JUMP;
         o->oMrBlizzardGraphYOffset = 24.0f;
         o->oMrBlizzardTargetMoveYaw = o->oMoveAngleYaw;
     } else {
         // Cap wearing Mr. Blizzard from SL.
-        if ((o->oBhvParams2ndByte != MR_BLIZZARD_STYPE_GENERIC)
+        if ((o->oBehParams2ndByte != MR_BLIZZARD_STYPE_NO_CAP)
             && (save_file_get_flags() & SAVE_FLAG_CAP_ON_MR_BLIZZARD)) {
             o->oAnimState = 1;
         }
@@ -239,9 +237,9 @@ static void mr_blizzard_act_death(void) {
         if (o->oMrBlizzardScale != 0.0f) {
             if ((o->oMrBlizzardScale -= 0.03f) <= 0.0f) {
                 o->oMrBlizzardScale = 0.0f;
-                if (!(o->oBhvParams & 0x0000FF00)) {
+                if (!GET_BPARAM3(o->oBehParams)) {
                     obj_spawn_loot_yellow_coins(o, o->oNumLootCoins, 20.0f);
-                    set_object_respawn_info_bits(o, 1);
+                    set_object_respawn_info_bits(o, RESPAWN_INFO_TYPE_NORMAL);
                 }
             }
         }
@@ -314,7 +312,7 @@ static void mr_blizzard_act_jump(void) {
             else {
                 o->oForwardVel = 10.0f;
                 o->oVelY = 50.0f;
-                o->oMoveFlags = 0;
+                o->oMoveFlags = OBJ_MOVE_NONE;
             }
         }
     } else if (o->oMoveFlags & OBJ_MOVE_MASK_ON_GROUND) {
@@ -410,7 +408,7 @@ static void mr_blizzard_snowball_act_1(void) {
         }
 
         o->oAction = 2;
-        o->oMoveFlags = 0;
+        o->oMoveFlags = OBJ_MOVE_NONE;
     }
 }
 

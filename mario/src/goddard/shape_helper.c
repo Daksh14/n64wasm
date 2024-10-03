@@ -161,7 +161,7 @@ void calc_face_normal(struct ObjFace *face) {
         p3.z = vtx3->pos.z;
 
         // calculate the cross product of edges (p2 - p1) and (p3 - p2)
-        // not sure why each component is multiplied by 1000. maybe to avoid loss of precision when normalizing?
+        // not sure why each component is multiplied by 1000. maybe to avoid loss of precision when normalizing? 
         normal.x = (((p2.y - p1.y) * (p3.z - p2.z)) - ((p2.z - p1.z) * (p3.y - p2.y))) * mul;
         normal.y = (((p2.z - p1.z) * (p3.x - p2.x)) - ((p2.x - p1.x) * (p3.z - p2.z))) * mul;
         normal.z = (((p2.x - p1.x) * (p3.y - p2.y)) - ((p2.y - p1.y) * (p3.x - p2.x))) * mul;
@@ -934,14 +934,9 @@ void read_ARK_shape(struct ObjShape *shape, char *fileName) {
     }
 
     gd_fread(fileInfo.bytes, 0x48, 1, sGdShapeFile);
-    stub_renderer_12(&fileInfo.bytes[0x40]); // face count?
-    stub_renderer_12(&fileInfo.bytes[0x44]);
 
     while (fileInfo.data.word40-- > 0) {
         gd_fread(faceInfo.bytes, 0x10, 1, sGdShapeFile);
-        stub_renderer_14(&faceInfo.bytes[0x0]);
-        stub_renderer_14(&faceInfo.bytes[0x4]);
-        stub_renderer_14(&faceInfo.bytes[0x8]);
 
         sp48.x = faceInfo.data.v[0];
         sp48.y = faceInfo.data.v[1];
@@ -949,22 +944,15 @@ void read_ARK_shape(struct ObjShape *shape, char *fileName) {
 
         sp34 = find_or_add_new_mtl(shape->mtlGroup, 0, sp48.x, sp48.y, sp48.z);
 
-        stub_renderer_12(&faceInfo.bytes[0xC]);
-
         while (faceInfo.data.faceCount-- > 0) {
             shape->faceCount++;
             gd_fread(face.bytes, 0x10, 1, sGdShapeFile);
-            stub_renderer_14(&face.bytes[0x4]); // read word as f32?
-            stub_renderer_14(&face.bytes[0x8]);
-            stub_renderer_14(&face.bytes[0xC]);
 
             sp44 = make_face_with_material(sp34);
 
             if (sp40 == NULL) {
                 sp40 = sp44;
             }
-
-            stub_renderer_12(&face.bytes[0x0]);
 
             if (face.data.vtxCount > 3) {
                 while (face.data.vtxCount-- > 0) {
@@ -976,12 +964,6 @@ void read_ARK_shape(struct ObjShape *shape, char *fileName) {
             while (face.data.vtxCount-- > 0) {
                 shape->vtxCount++;
                 gd_fread(vtx.bytes, 0x18, 1, sGdShapeFile);
-                stub_renderer_14(&vtx.bytes[0x00]);
-                stub_renderer_14(&vtx.bytes[0x04]);
-                stub_renderer_14(&vtx.bytes[0x08]);
-                stub_renderer_14(&vtx.bytes[0x0C]);
-                stub_renderer_14(&vtx.bytes[0x10]);
-                stub_renderer_14(&vtx.bytes[0x14]);
 
                 func_801980E8(vtx.data.v);
                 sp3C = gd_make_vertex(vtx.data.v[0], vtx.data.v[1], vtx.data.v[2]);

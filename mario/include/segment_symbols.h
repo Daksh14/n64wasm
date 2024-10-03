@@ -6,12 +6,19 @@
     extern u8 _##name##SegmentRomStart[]; \
     extern u8 _##name##SegmentRomEnd[];
 
+#define DECLARE_NOLOAD(name) \
+    extern u8 _##name##SegmentBssStart[]; \
+    extern u8 _##name##SegmentBssEnd[];
+
 #define DECLARE_ACTOR_SEGMENT(name) \
     DECLARE_SEGMENT(name##_mio0) \
-    DECLARE_SEGMENT(name##_geo)
+    DECLARE_SEGMENT(name##_yay0) \
+    DECLARE_SEGMENT(name##_geo) \
+    DECLARE_NOLOAD(name##_geo)
 
 #define DECLARE_LEVEL_SEGMENT(name) \
     DECLARE_SEGMENT(name) \
+    DECLARE_NOLOAD(name) \
     DECLARE_SEGMENT(name##_segment_7)
 
 DECLARE_ACTOR_SEGMENT(common0)
@@ -38,16 +45,24 @@ DECLARE_ACTOR_SEGMENT(group17)
 DECLARE_SEGMENT(entry)
 DECLARE_SEGMENT(engine)
 DECLARE_SEGMENT(behavior)
+DECLARE_NOLOAD(behavior)
 DECLARE_SEGMENT(scripts)
 DECLARE_SEGMENT(goddard)
-
+DECLARE_SEGMENT(framebuffers)
+DECLARE_SEGMENT(assets)
 extern u8 _goddardSegmentStart[];
-
-#ifdef USE_EXT_RAM
+extern u8 _goddardSegmentEnd[];
 extern u8 _engineSegmentStart[];
-extern u8 _framebuffersSegmentNoloadStart[];
-extern u8 _framebuffersSegmentNoloadEnd[];
-#endif
+extern u8 _engineSegmentBssEnd[];
+extern u8 _mainSegmentStart[];
+extern u8 _mainSegmentEnd[];
+extern u8 _engineSegmentEnd[];
+extern u8 _framebuffersSegmentBssStart[];
+extern u8 _framebuffersSegmentBssEnd[];
+extern u8 _zbufferSegmentBssStart[];
+extern u8 _zbufferSegmentBssEnd[];
+extern u8 _buffersSegmentBssStart[];
+extern u8 _buffersSegmentBssEnd[];
 
 DECLARE_LEVEL_SEGMENT(menu)
 DECLARE_LEVEL_SEGMENT(intro)
@@ -61,6 +76,43 @@ DECLARE_LEVEL_SEGMENT(ending)
 #undef STUB_LEVEL
 #undef DEFINE_LEVEL
 
+DECLARE_SEGMENT(segment2_yay0)
+
+DECLARE_SEGMENT(water_skybox_yay0)
+DECLARE_SEGMENT(ccm_skybox_yay0)
+DECLARE_SEGMENT(clouds_skybox_yay0)
+DECLARE_SEGMENT(bitfs_skybox_yay0)
+DECLARE_SEGMENT(wdw_skybox_yay0)
+DECLARE_SEGMENT(cloud_floor_skybox_yay0)
+DECLARE_SEGMENT(ssl_skybox_yay0)
+DECLARE_SEGMENT(bbh_skybox_yay0)
+DECLARE_SEGMENT(bidw_skybox_yay0)
+DECLARE_SEGMENT(bits_skybox_yay0)
+
+DECLARE_SEGMENT(fire_yay0)
+DECLARE_SEGMENT(spooky_yay0)
+DECLARE_SEGMENT(generic_yay0)
+DECLARE_SEGMENT(water_yay0)
+DECLARE_SEGMENT(sky_yay0)
+DECLARE_SEGMENT(snow_yay0)
+DECLARE_SEGMENT(cave_yay0)
+DECLARE_SEGMENT(machine_yay0)
+DECLARE_SEGMENT(mountain_yay0)
+DECLARE_SEGMENT(grass_yay0)
+DECLARE_SEGMENT(outside_yay0)
+DECLARE_SEGMENT(inside_yay0)
+DECLARE_SEGMENT(effect_yay0)
+DECLARE_SEGMENT(title_screen_bg_yay0)
+
+DECLARE_SEGMENT(debug_level_select_yay0)
+
+#ifdef VERSION_EU
+DECLARE_SEGMENT(translation_de_yay0)
+DECLARE_SEGMENT(translation_en_yay0)
+DECLARE_SEGMENT(translation_fr_yay0)
+#endif
+
+//added for compatibility
 DECLARE_SEGMENT(segment2_mio0)
 
 DECLARE_SEGMENT(water_skybox_mio0)

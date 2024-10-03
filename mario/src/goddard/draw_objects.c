@@ -1,10 +1,6 @@
 #include <PR/ultratypes.h>
 #include <stdio.h>
 
-#if defined(VERSION_JP) || defined(VERSION_US)
-#include "prevent_bss_reordering.h"
-#endif
-
 #include "debug_utils.h"
 #include "dynlist_proc.h"
 #include "gd_macros.h"
@@ -589,7 +585,6 @@ void draw_label(struct ObjLabel *label) {
     position.y += label->position.y;
     position.z += label->position.z;
     func_801A4438(position.x, position.y, position.z);
-    stub_renderer_10(label->unk30);
     stub_draw_label_text(strbuf);
 }
 
@@ -1129,12 +1124,7 @@ void unref_8017AEDC(struct ObjGroup *grp) {
  * @bug Nothing is returned if the DL is created
  * @note Contains string literals that suggest a removed `printf` call
  */
-#ifdef AVOID_UB
-void
-#else
-s32
-#endif
-create_shape_gddl(struct ObjShape *s) {
+void create_shape_gddl(struct ObjShape *s) {
     struct ObjShape *shape = s; // 24
     s32 shapedl;                // 20
     UNUSED s32 enddl;           // 1C
@@ -1142,11 +1132,7 @@ create_shape_gddl(struct ObjShape *s) {
     create_shape_mtl_gddls(shape);
     shapedl = gd_startdisplist(7);
     if (shapedl == 0) {
-#ifdef AVOID_UB
         return;
-#else
-        return -1;
-#endif
     }
 
     setup_lights();

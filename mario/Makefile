@@ -5,8 +5,13 @@ include util.mk
 # Default target
 default: all
 
+TARGET_STRING := sm64
+
 # Preprocessor definitions
 DEFINES :=
+
+SRC_DIRS :=
+USE_DEBUG := 0
 
 #==============================================================================#
 # Build Options                                                                #
@@ -18,131 +23,272 @@ DEFINES :=
 # Build for the N64 (turn this off for ports)
 TARGET_N64 ?= 1
 
+# CONSOLE - selects the console to target
+#   bb - Targets the iQue Player (codenamed BB)
+#   n64 - Targets the N64
+CONSOLE ?= n64
+$(eval $(call validate-option,CONSOLE,n64 bb))
+
+ifeq      ($(CONSOLE),n64)
+  INCLUDE_DIRS   += include/n64
+  LIBS_DIR       := lib/n64
+else ifeq ($(CONSOLE),bb)
+  INCLUDE_DIRS   += include/ique
+  LIBS_DIR       := lib/ique
+  DEFINES        += BBPLAYER=1
+endif
 
 # COMPILER - selects the C compiler to use
-#   ido - uses the SGI IRIS Development Option compiler, which is used to build
-#         an original matching N64 ROM
 #   gcc - uses the GNU C Compiler
-COMPILER ?= ido
-$(eval $(call validate-option,COMPILER,ido gcc))
+#   clang - uses clang C/C++ frontend for LLVM
+COMPILER ?= gcc
+$(eval $(call validate-option,COMPILER,gcc clang))
 
+
+# LIBGCCDIR - selects the libgcc configuration for checking for dividing by zero
+#   trap - GCC default behavior, uses teq instructions which some emulators don't like
+#   divbreak - this is similar to IDO behavior, and is default.
+#   nocheck - never checks for dividing by 0. Technically fastest, but also UB so not recommended
+LIBGCCDIR ?= divbreak
+$(eval $(call validate-option,LIBGCCDIR,trap divbreak nocheck))
+
+
+# SAVETYPE - selects the save type
+#   eep4k - uses EEPROM 4kbit
+#   eep16k - uses EEPROM 16kbit (There aren't any differences in syntax, but this is provided just in case)
+#   sram - uses SRAM 256Kbit
+SAVETYPE ?= eep4k
+$(eval $(call validate-option,SAVETYPE,eep4k eep16k sram))
+ifeq ($(SAVETYPE),eep4k)
+  DEFINES += EEP=1 EEP4K=1
+else ifeq ($(SAVETYPE),eep16k)
+  DEFINES += EEP=1 EEP16K=1
+else ifeq ($(SAVETYPE),sram)
+  DEFINES += SRAM=1
+endif
+
+DEFINES += NO_ERRNO_H=1 NO_GZIP=1
 
 # VERSION - selects the version of the game to build
 #   jp - builds the 1996 Japanese version
 #   us - builds the 1996 North American version
 #   eu - builds the 1997 PAL version
 #   sh - builds the 1997 Japanese Shindou version, with rumble pak support
-#   cn - builds the 2003 Chinese iQue version
 VERSION ?= us
-$(eval $(call validate-option,VERSION,jp us eu sh cn))
+$(eval $(call validate-option,VERSION,jp us eu sh))
 
 ifeq      ($(VERSION),jp)
-  DEFINES   += VERSION_JP=1
-  OPT_FLAGS := -g
-  GRUCODE   ?= f3d_old
-  VERSION_JP_US  ?= true
-  VERSION_SH_CN  ?= false
+  DEFINES += VERSION_JP=1
 else ifeq ($(VERSION),us)
-  DEFINES   += VERSION_US=1
-  OPT_FLAGS := -g
-  GRUCODE   ?= f3d_old
-  VERSION_JP_US  ?= true
-  VERSION_SH_CN  ?= false
+  DEFINES += VERSION_US=1
 else ifeq ($(VERSION),eu)
-  DEFINES   += VERSION_EU=1
-  OPT_FLAGS := -O2
-  GRUCODE   ?= f3d_new
-  VERSION_JP_US  ?= false
-  VERSION_SH_CN  ?= false
+  DEFINES += VERSION_EU=1
 else ifeq ($(VERSION),sh)
-  DEFINES   += VERSION_SH=1
-  OPT_FLAGS := -O2
-  GRUCODE   ?= f3d_new
-  VERSION_JP_US  ?= false
-  VERSION_SH_CN  ?= true
-else ifeq ($(VERSION),cn)
-  DEFINES   += VERSION_CN=1
-  OPT_FLAGS := -O2
-  GRUCODE   ?= f3d_new
-  VERSION_JP_US ?= false
-  VERSION_SH_CN  ?= true
+  DEFINES += VERSION_SH=1
 endif
 
-TARGET := sm64.$(VERSION)
+# FIXLIGHTS - converts light objects to light color commands for assets, needed for vanilla-style lighting
+FIXLIGHTS ?= 1
+
+DEBUG_MAP_STACKTRACE_FLAG := -D DEBUG_MAP_STACKTRACE
+
+TARGET := sm64
 
 
 # GRUCODE - selects which RSP microcode to use.
-#   f3d_old - default for JP and US versions
-#   f3d_new - default for EU and Shindou versions
 #   f3dex   -
 #   f3dex2  -
+#   l3dex2  - F3DEX2 version that only renders in wireframe
 #   f3dzex  - newer, experimental microcode used in Animal Crossing
-$(eval $(call validate-option,GRUCODE,f3d_old f3dex f3dex2 f3d_new f3dzex))
+#   super3d - extremely experimental version of Fast3D lacking many features for speed
+GRUCODE ?= f3dzex
+$(eval $(call validate-option,GRUCODE,f3dex f3dex2 f3dex2pl f3dzex super3d l3dex2))
 
-ifeq      ($(GRUCODE),f3d_old)
-  DEFINES += F3D_OLD=1
-else ifeq ($(GRUCODE),f3d_new) # Fast3D 2.0H
-  DEFINES += F3D_NEW=1
-else ifeq ($(GRUCODE),f3dex) # Fast3DEX
+ifeq ($(GRUCODE),f3dex) # Fast3DEX
   DEFINES += F3DEX_GBI=1 F3DEX_GBI_SHARED=1
-else ifeq ($(GRUCODE), f3dex2) # Fast3DEX2
+else ifeq ($(GRUCODE),f3dex2) # Fast3DEX2
   DEFINES += F3DEX_GBI_2=1 F3DEX_GBI_SHARED=1
-else ifeq ($(GRUCODE),f3dzex) # Fast3DZEX (2.0J / Animal Forest - Dōbutsu no Mori)
-  $(warning Fast3DZEX is experimental. Try at your own risk.)
-  DEFINES += F3DZEX_GBI_2=1 F3DEX_GBI_2=1 F3DEX_GBI_SHARED=1
+else ifeq ($(GRUCODE),l3dex2) # Line3DEX2
+  DEFINES += L3DEX2_GBI=1 L3DEX2_ALONE=1 F3DEX_GBI_2=1 F3DEX_GBI_SHARED=1
+else ifeq ($(GRUCODE),f3dex2pl) # Fast3DEX2_PosLight
+  DEFINES += F3DEX2PL_GBI=1 F3DEX_GBI_2=1 F3DEX_GBI_SHARED=1
+else ifeq ($(GRUCODE),f3dzex) # Fast3DZEX (2.08J / Animal Forest - Dōbutsu no Mori)
+  DEFINES += F3DZEX_NON_GBI_2=1 F3DEX_GBI_2=1 F3DEX_GBI_SHARED=1
+else ifeq ($(GRUCODE),super3d) # Super3D
+  $(warning Super3D is experimental. Try at your own risk.)
+  DEFINES += SUPER3D_GBI=1 F3D_NEW=1
 endif
 
+# TEXT ENGINES
+#   s2dex_text_engine - Text Engine by someone2639
+TEXT_ENGINE := none
+$(eval $(call validate-option,TEXT_ENGINE,none s2dex_text_engine))
 
-# USE_QEMU_IRIX - when ido is selected, select which way to emulate IRIX programs
-#   1 - use qemu-irix
-#   0 - statically recompile the IRIX programs
-USE_QEMU_IRIX ?= 0
-$(eval $(call validate-option,USE_QEMU_IRIX,0 1))
+ifeq ($(TEXT_ENGINE), s2dex_text_engine)
+  DEFINES += S2DEX_GBI_2=1 S2DEX_TEXT_ENGINE=1
+  SRC_DIRS += src/s2d_engine
+endif
+# add more text engines here
 
-ifeq      ($(COMPILER),ido)
-  ifeq ($(USE_QEMU_IRIX),1)
-    # Verify that qemu-irix exists
-    QEMU_IRIX ?= $(call find-command,qemu-irix)
-    ifeq (, $(QEMU_IRIX))
-      $(error Using the IDO compiler requires qemu-irix. Please install qemu-irix package or set the QEMU_IRIX environment variable to the full qemu-irix binary path)
-    endif
-  endif
+#==============================================================================#
+# Optimization flags                                                           #
+#==============================================================================#
 
-  MIPSISET := -mips2
-else ifeq ($(COMPILER),gcc)
-  NON_MATCHING := 1
+# Default non-gcc opt flags
+DEFAULT_OPT_FLAGS = -Ofast -falign-functions=32
+# Note: -fno-associative-math is used here to suppress warnings, ideally we would enable this as an optimization but
+# this conflicts with -ftrapping-math apparently.
+# TODO: Figure out how to allow -fassociative-math to be enabled
+SAFETY_OPT_FLAGS = -ftrapping-math -fno-associative-math
+
+# Main opt flags
+GCC_MAIN_OPT_FLAGS = \
+  $(DEFAULT_OPT_FLAGS) $(SAFETY_OPT_FLAGS) \
+  --param case-values-threshold=20 \
+  --param max-completely-peeled-insns=10 \
+  --param max-unrolled-insns=10 \
+  -finline-limit=1 \
+  -freorder-blocks-algorithm=simple  \
+  -ffunction-sections \
+  -fdata-sections
+
+# Surface Collision
+GCC_COLLISION_OPT_FLAGS = \
+  $(DEFAULT_OPT_FLAGS) $(SAFETY_OPT_FLAGS) \
+  --param case-values-threshold=20 \
+  --param max-completely-peeled-insns=100 \
+  --param max-unrolled-insns=100 \
+  -finline-limit=0 \
+  -fno-inline \
+  -freorder-blocks-algorithm=simple  \
+  -ffunction-sections \
+  -fdata-sections \
+  -falign-functions=32
+
+# Math Util
+GCC_MATH_UTIL_OPT_FLAGS = \
+  $(DEFAULT_OPT_FLAGS) $(SAFETY_OPT_FLAGS) \
+  -fno-unroll-loops \
+  -fno-peel-loops \
+  --param case-values-threshold=20  \
+  -ffunction-sections \
+  -fdata-sections \
+  -falign-functions=32
+#   - setting any sort of -finline-limit has shown to worsen performance with math_util.c,
+#     lower values were the worst, the higher you go - the closer performance gets to not setting it at all
+
+# Rendering graph node
+GCC_GRAPH_NODE_OPT_FLAGS = \
+  $(DEFAULT_OPT_FLAGS) $(SAFETY_OPT_FLAGS) \
+  --param case-values-threshold=20 \
+  --param max-completely-peeled-insns=100 \
+  --param max-unrolled-insns=100 \
+  -finline-limit=0 \
+  -freorder-blocks-algorithm=simple  \
+  -ffunction-sections \
+  -fdata-sections \
+  -falign-functions=32
+#==============================================================================#
+
+ifeq ($(COMPILER),gcc)
   MIPSISET     := -mips3
-  OPT_FLAGS    := -O2
+  OPT_FLAGS           := $(GCC_MAIN_OPT_FLAGS)
+  COLLISION_OPT_FLAGS  = $(GCC_COLLISION_OPT_FLAGS)
+  MATH_UTIL_OPT_FLAGS  = $(GCC_MATH_UTIL_OPT_FLAGS)
+  GRAPH_NODE_OPT_FLAGS = $(GCC_GRAPH_NODE_OPT_FLAGS)
+else ifeq ($(COMPILER),clang)
+  # clang doesn't support ABI 'o32' for 'mips3'
+  MIPSISET     := -mips2
+  OPT_FLAGS    := $(DEFAULT_OPT_FLAGS)
+  COLLISION_OPT_FLAGS  = $(DEFAULT_OPT_FLAGS)
+  MATH_UTIL_OPT_FLAGS  = $(DEFAULT_OPT_FLAGS)
+  GRAPH_NODE_OPT_FLAGS = $(DEFAULT_OPT_FLAGS)
 endif
 
+# UNF - whether to use UNFLoader flashcart library
+#   1 - includes code in ROM
+#   0 - does not
+UNF ?= 0
+$(eval $(call validate-option,UNF,0 1))
 
-# NON_MATCHING - whether to build a matching, identical copy of the ROM
-#   1 - enable some alternate, more portable code that does not produce a matching ROM
-#   0 - build a matching ROM
-NON_MATCHING ?= 0
-$(eval $(call validate-option,NON_MATCHING,0 1))
-
-ifeq ($(TARGET_N64),0)
-  NON_MATCHING := 1
+# if `unf` is a target, make sure that UNF is set
+ifneq ($(filter unf,$(MAKECMDGOALS)),)
+	UNF = 1
 endif
 
-ifeq ($(NON_MATCHING),1)
-  DEFINES += NON_MATCHING=1 AVOID_UB=1
-  COMPARE := 0
+ifeq ($(UNF),1)
+  DEFINES += UNF=1
+  SRC_DIRS += src/usb
 endif
 
-
-# COMPARE - whether to verify the SHA-1 hash of the ROM after building
-#   1 - verifies the SHA-1 hash of the selected version of the game
-#   0 - does not verify the hash
-COMPARE ?= 1
-$(eval $(call validate-option,COMPARE,0 1))
-
-TARGET_STRING := sm64.$(VERSION).$(GRUCODE)
-# If non-default settings were chosen, disable COMPARE
-ifeq ($(filter $(TARGET_STRING), sm64.jp.f3d_old sm64.us.f3d_old sm64.eu.f3d_new sm64.sh.f3d_new sm64.cn.f3d_new),)
-  COMPARE := 0
+# ISVPRINT - whether to fake IS-Viewer presence,
+# allowing for usage of CEN64 (and possibly Project64) to print messages to terminal.
+#   1 - includes code in ROM
+#   0 - does not
+ISVPRINT ?= 0
+$(eval $(call validate-option,ISVPRINT,0 1))
+ifeq ($(ISVPRINT),1)
+  DEFINES += ISVPRINT=1
+  USE_DEBUG := 1
 endif
+
+ifeq ($(USE_DEBUG),1)
+  ULTRALIB := ultra_d
+  DEFINES += DEBUG=1 OVERWRITE_OSPRINT=1
+else ifeq ($(UNF),1)
+  ULTRALIB := ultra
+  DEFINES += _FINALROM=1 NDEBUG=1 OVERWRITE_OSPRINT=1
+else
+  ULTRALIB := ultra_rom
+  DEFINES += _FINALROM=1 NDEBUG=1 OVERWRITE_OSPRINT=0
+endif
+
+# HVQM - whether to use HVQM fmv library
+#   1 - includes code in ROM
+#   0 - does not
+HVQM ?= 0
+$(eval $(call validate-option,HVQM,0 1))
+ifeq ($(HVQM),1)
+  DEFINES += HVQM=1
+  SRC_DIRS += src/hvqm
+endif
+
+# LIBPL - whether to include libpl library for interfacing with Parallel Launcher
+# (library will be pulled into repo after building with this enabled for the first time)
+#   1 - includes code in ROM
+#   0 - does not
+LIBPL ?= 0
+LIBPL_DIR := lib/libpl
+$(eval $(call validate-option,LIBPL,0 1))
+ifeq ($(LIBPL),1)
+  DEFINES += LIBPL=1
+  SRC_DIRS += $(LIBPL_DIR)
+endif
+
+BUILD_DIR_BASE := build
+# BUILD_DIR is the location where all build artifacts are placed
+BUILD_DIR      := $(BUILD_DIR_BASE)/$(VERSION)_$(CONSOLE)
+
+COMPRESS ?= yay0
+$(eval $(call validate-option,COMPRESS,mio0 yay0 gzip rnc1 rnc2 uncomp))
+ifeq ($(COMPRESS),gzip)
+  DEFINES += GZIP=1
+  LIBZRULE := $(BUILD_DIR)/libz.a
+  LIBZLINK := -lz
+else ifeq ($(COMPRESS),rnc1)
+  DEFINES += RNC1=1
+else ifeq ($(COMPRESS),rnc2)
+  DEFINES += RNC2=1
+else ifeq ($(COMPRESS),yay0)
+  DEFINES += YAY0=1
+else ifeq ($(COMPRESS),mio0)
+  DEFINES += MIO0=1
+else ifeq ($(COMPRESS),uncomp)
+  DEFINES += UNCOMPRESSED=1
+endif
+
+GZIPVER ?= std
+$(eval $(call validate-option,GZIPVER,std libdef))
 
 # Whether to hide commands or not
 VERBOSE ?= 0
@@ -153,32 +299,12 @@ endif
 # Whether to colorize build messages
 COLOR ?= 1
 
-# display selected options unless 'make clean' or 'make distclean' is run
-ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
-  $(info ==== Build Options ====)
-  $(info Version:        $(VERSION))
-  $(info Microcode:      $(GRUCODE))
-  $(info Target:         $(TARGET))
-  ifeq ($(COMPARE),1)
-    $(info Compare ROM:    yes)
-  else
-    $(info Compare ROM:    no)
-  endif
-  ifeq ($(NON_MATCHING),1)
-    $(info Build Matching: no)
-  else
-    $(info Build Matching: yes)
-  endif
-  $(info =======================)
-endif
-
-DEFINES += _FINALROM=1
-
 #==============================================================================#
 # Universal Dependencies                                                       #
 #==============================================================================#
 
 TOOLS_DIR := tools
+
 
 # (This is a bit hacky, but a lot of rules implicitly depend
 # on tools and assets, and we use directory globs further down
@@ -191,23 +317,48 @@ ifeq ($(filter clean distclean print-%,$(MAKECMDGOALS)),)
   # Make sure assets exist
   NOEXTRACT ?= 0
   ifeq ($(NOEXTRACT),0)
-    DUMMY != $(PYTHON) extract_assets.py $(VERSION) >&2 || echo FAIL
+    DUMMY != $(PYTHON) extract_assets.py us >&2 || echo FAIL
     ifeq ($(DUMMY),FAIL)
-      $(error Failed to extract assets)
+      $(error Failed to extract assets from US ROM)
+    endif
+    ifneq (,$(shell python3 tools/detect_baseroms.py jp))
+      DUMMY != $(PYTHON) extract_assets.py jp >&2 || echo FAIL
+      ifeq ($(DUMMY),FAIL)
+        $(error Failed to extract assets from JP ROM)
+      endif
+    endif
+    ifneq (,$(shell python3 tools/detect_baseroms.py eu))
+      DUMMY != $(PYTHON) extract_assets.py eu >&2 || echo FAIL
+      ifeq ($(DUMMY),FAIL)
+        $(error Failed to extract assets from EU ROM)
+      endif
+    endif
+    ifneq (,$(shell python3 tools/detect_baseroms.py sh))
+      DUMMY != $(PYTHON) extract_assets.py sh >&2 || echo FAIL
+      ifeq ($(DUMMY),FAIL)
+        $(error Failed to extract assets from SH ROM)
+      endif
     endif
   endif
 
   # Make tools if out of date
-  $(info Building general tools...)
-  DUMMY != $(MAKE) -s -C $(TOOLS_DIR) $(if $(filter-out ido0,$(COMPILER)$(USE_QEMU_IRIX)),all-except-recomp,) >&2 || echo FAIL
+  $(info Building tools...)
+  DUMMY != $(MAKE) -s -C $(TOOLS_DIR) >&2 || echo FAIL
     ifeq ($(DUMMY),FAIL)
       $(error Failed to build tools)
     endif
-  $(info Building sm64tools...)
-  DUMMY != $(MAKE) -s -C $(TOOLS_DIR)/sm64tools $(if $(filter-out ido0,$(COMPILER)$(USE_QEMU_IRIX)),) >&2 || echo FAIL
-    ifeq ($(DUMMY),FAIL)
-      $(error Failed to build tools)
+
+  # Clone any needed submodules
+  ifeq ($(LIBPL),1)
+    ifeq ($(wildcard $(LIBPL_DIR)/*.h),)
+      $(info Cloning libpl submodule...)
+      DUMMY != git submodule update --init $(LIBPL_DIR) > /dev/null || echo FAIL
+      ifeq ($(DUMMY),FAIL)
+        $(error Failed to clone libpl submodule)
+      endif
     endif
+  endif
+
   $(info Building ROM...)
 
 endif
@@ -219,31 +370,22 @@ endif
 
 BUILD_DIR_BASE := build
 # BUILD_DIR is the location where all build artifacts are placed
-BUILD_DIR      := $(BUILD_DIR_BASE)/$(VERSION)
-ROM            := $(BUILD_DIR)/$(TARGET).z64
-ELF            := $(BUILD_DIR)/$(TARGET).elf
-LIBULTRA       := $(BUILD_DIR)/libultra.a
+BUILD_DIR      := $(BUILD_DIR_BASE)/$(VERSION)_$(CONSOLE)
+ROM            := $(BUILD_DIR)/$(TARGET_STRING).z64
+ELF            := $(BUILD_DIR)/$(TARGET_STRING).elf
+LIBZ           := $(BUILD_DIR)/libz.a
 LD_SCRIPT      := sm64.ld
-CHARMAP        := charmap.txt
-CHARMAP_DEBUG  := charmap.debug.txt
-MIO0_DIR       := $(BUILD_DIR)/bin
+YAY0_DIR       := $(BUILD_DIR)/bin
 SOUND_BIN_DIR  := $(BUILD_DIR)/sound
 TEXTURE_DIR    := textures
 ACTOR_DIR      := actors
 LEVEL_DIRS     := $(patsubst levels/%,%,$(dir $(wildcard levels/*/header.h)))
 
 # Directories containing source files
-SRC_DIRS := src src/engine src/game src/audio src/menu src/buffers actors levels bin data assets asm lib sound
-BIN_DIRS := bin bin/$(VERSION)
-
-ifeq ($(VERSION),cn)
-  LIBGCC_SRC_DIRS += lib/src/libgcc
-endif
-
-ULTRA_SRC_DIRS := lib/src lib/src/math lib/asm lib/data
-ULTRA_BIN_DIRS := lib/bin
-
+SRC_DIRS += src src/boot src/game src/engine src/audio src/menu src/buffers actors levels bin data assets asm lib sound
+LIBZ_SRC_DIRS := src/libz
 GODDARD_SRC_DIRS := src/goddard src/goddard/dynlists
+BIN_DIRS := bin bin/$(VERSION)
 
 # File dependencies and variables for specific files
 include Makefile.split
@@ -251,12 +393,14 @@ include Makefile.split
 # Source code files
 LEVEL_C_FILES     := $(wildcard levels/*/leveldata.c) $(wildcard levels/*/script.c) $(wildcard levels/*/geo.c)
 C_FILES           := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.c)) $(LEVEL_C_FILES)
-S_FILES           := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.s))
-ULTRA_C_FILES     := $(foreach dir,$(ULTRA_SRC_DIRS),$(wildcard $(dir)/*.c))
+CPP_FILES         := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.cpp))
+LIBZ_C_FILES      := $(foreach dir,$(LIBZ_SRC_DIRS),$(wildcard $(dir)/*.c))
 GODDARD_C_FILES   := $(foreach dir,$(GODDARD_SRC_DIRS),$(wildcard $(dir)/*.c))
-ULTRA_S_FILES     := $(foreach dir,$(ULTRA_SRC_DIRS),$(wildcard $(dir)/*.s))
-LIBGCC_C_FILES    := $(foreach dir,$(LIBGCC_SRC_DIRS),$(wildcard $(dir)/*.c))
+S_FILES           := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.s))
 GENERATED_C_FILES := $(BUILD_DIR)/assets/mario_anim_data.c $(BUILD_DIR)/assets/demo_data.c
+
+# Ignore all .inc.c files
+C_FILES           := $(filter-out %.inc.c,$(C_FILES))
 
 # Sound files
 SOUND_BANK_FILES    := $(wildcard sound/sound_banks/*.json)
@@ -264,11 +408,7 @@ SOUND_SAMPLE_DIRS   := $(wildcard sound/samples/*)
 SOUND_SAMPLE_AIFFS  := $(foreach dir,$(SOUND_SAMPLE_DIRS),$(wildcard $(dir)/*.aiff))
 SOUND_SAMPLE_TABLES := $(foreach file,$(SOUND_SAMPLE_AIFFS),$(BUILD_DIR)/$(file:.aiff=.table))
 SOUND_SAMPLE_AIFCS  := $(foreach file,$(SOUND_SAMPLE_AIFFS),$(BUILD_DIR)/$(file:.aiff=.aifc))
-ifeq ($(VERSION),cn)
-  SOUND_SEQUENCE_DIRS := sound/sequences sound/sequences/sh
-else
-  SOUND_SEQUENCE_DIRS := sound/sequences sound/sequences/$(VERSION)
-endif
+SOUND_SEQUENCE_DIRS := sound/sequences sound/sequences/$(VERSION)
 # all .m64 files in SOUND_SEQUENCE_DIRS, plus all .m64 files that are generated from .s files in SOUND_SEQUENCE_DIRS
 SOUND_SEQUENCE_FILES := \
   $(foreach dir,$(SOUND_SEQUENCE_DIRS),\
@@ -278,76 +418,84 @@ SOUND_SEQUENCE_FILES := \
 
 # Object files
 O_FILES := $(foreach file,$(C_FILES),$(BUILD_DIR)/$(file:.c=.o)) \
+           $(foreach file,$(CPP_FILES),$(BUILD_DIR)/$(file:.cpp=.o)) \
            $(foreach file,$(S_FILES),$(BUILD_DIR)/$(file:.s=.o)) \
-           $(foreach file,$(GENERATED_C_FILES),$(file:.c=.o))
+           $(foreach file,$(GENERATED_C_FILES),$(file:.c=.o)) \
+           lib/PR/hvqm/hvqm2sp1.o lib/PR/hvqm/hvqm2sp2.o
 
-ULTRA_O_FILES := $(foreach file,$(ULTRA_S_FILES),$(BUILD_DIR)/$(file:.s=.o)) \
-                 $(foreach file,$(ULTRA_C_FILES),$(BUILD_DIR)/$(file:.c=.o))
-
+LIBZ_O_FILES := $(foreach file,$(LIBZ_C_FILES),$(BUILD_DIR)/$(file:.c=.o))
 GODDARD_O_FILES := $(foreach file,$(GODDARD_C_FILES),$(BUILD_DIR)/$(file:.c=.o))
 
-LIBGCC_O_FILES := $(foreach file,$(LIBGCC_C_FILES),$(BUILD_DIR)/$(file:.c=.o))
-
 # Automatic dependency files
-DEP_FILES := $(O_FILES:.o=.d) $(ULTRA_O_FILES:.o=.d) $(GODDARD_O_FILES:.o=.d) $(LIBGCC_O_FILES:.o=.d) $(BUILD_DIR)/$(LD_SCRIPT).d
-
-# Files with GLOBAL_ASM blocks
-ifeq ($(NON_MATCHING),0)
-  GLOBAL_ASM_C_FILES != grep -rl 'GLOBAL_ASM(' $(wildcard src/**/*.c)
-GLOBAL_ASM_O_FILES = $(foreach file,$(GLOBAL_ASM_C_FILES),$(BUILD_DIR)/$(file:.c=.o))
-GLOBAL_ASM_DEP = $(BUILD_DIR)/src/audio/non_matching_dep
-endif
-
+DEP_FILES := $(O_FILES:.o=.d) $(LIBZ_O_FILES:.o=.d) $(GODDARD_O_FILES:.o=.d) $(BUILD_DIR)/$(LD_SCRIPT).d
 
 #==============================================================================#
 # Compiler Options                                                             #
 #==============================================================================#
 
-IQUE_EGCS_PATH := $(TOOLS_DIR)/ique_egcs
-IQUE_LD_PATH := $(TOOLS_DIR)/ique_ld
-
 # detect prefix for MIPS toolchain
-ifneq      ($(call find-command,mips-linux-gnu-ld),)
+ifneq ($(call find-command,mips64-elf-ld),)
+  CROSS := mips64-elf-
+else ifneq ($(call find-command,mips-n64-ld),)
+  CROSS := mips-n64-
+else ifneq ($(call find-command,mips64-ld),)
+  CROSS := mips64-
+else ifneq ($(call find-command,mips-linux-gnu-ld),)
   CROSS := mips-linux-gnu-
 else ifneq ($(call find-command,mips64-linux-gnu-ld),)
   CROSS := mips64-linux-gnu-
-else ifneq ($(call find-command,mips64-elf-ld),)
-  CROSS := mips64-elf-
+else ifneq ($(call find-command,mips64-none-elf-ld),)
+  CROSS := mips64-none-elf-
+else ifneq ($(call find-command,mips-ld),)
+  CROSS := mips-
 else
   $(error Unable to detect a suitable MIPS toolchain installed)
 endif
 
-AS            := $(CROSS)as
+LIBRARIES := nustd hvqm2 z goddard
+
+LINK_LIBRARIES = $(foreach i,$(LIBRARIES),-l$(i))
+
+export LD_LIBRARY_PATH=./tools
+
+AS        := $(CROSS)as
 ifeq ($(COMPILER),gcc)
-  CC          := $(CROSS)gcc
+  CC      := $(CROSS)gcc
+  CXX     := $(CROSS)g++
+  $(BUILD_DIR)/actors/%.o:           OPT_FLAGS := -Ofast -mlong-calls
+  $(BUILD_DIR)/levels/%.o:           OPT_FLAGS := -Ofast -mlong-calls
+else ifeq ($(COMPILER),clang)
+  CC      := clang
+  CXX     := clang++
+endif
+# Prefer gcc's cpp if installed on the system
+ifneq (,$(call find-command,cpp-10))
+  CPP     := cpp-10
 else
-  ifeq ($(USE_QEMU_IRIX),1)
-    IRIX_ROOT := $(TOOLS_DIR)/ido5.3_compiler
-    CC        := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/bin/cc
-    ACPP      := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/lib/acpp
-    COPT      := $(QEMU_IRIX) -silent -L $(IRIX_ROOT) $(IRIX_ROOT)/usr/lib/copt
-  else
-    IDO_ROOT  := $(TOOLS_DIR)/ido-static-recomp/build/out
-    CC        := $(IDO_ROOT)/cc
-    ACPP      := $(IDO_ROOT)/acpp
-    COPT      := $(IDO_ROOT)/copt
+  CPP     := cpp
+endif
+ifneq ($(call find-command,mips-n64-ld),)
+LD        := mips-n64-ld
+else
+LD        := tools/mips64-elf-ld
+endif
+AR        := $(CROSS)ar
+OBJDUMP   := $(CROSS)objdump
+OBJCOPY   := $(CROSS)objcopy
+
+ifeq ($(LD), tools/mips64-elf-ld)
+  ifeq ($(shell ls -la tools/mips64-elf-ld | awk '{print $1}' | grep x),)
+    $(warning [ERROR]: A required file in this repository is no longer executable.)
+    $(error *    Please run: 'chmod +x tools/mips64-elf-ld', then run `make` again)
   endif
 endif
-ifeq ($(VERSION),cn)
-  LD          := LD_LIBRARY_PATH=$(IQUE_LD_PATH) $(IQUE_LD_PATH)/mips64-elf-ld
-else
-  LD          := $(CROSS)ld
-endif
-AR            := $(CROSS)ar
-OBJDUMP       := $(CROSS)objdump
-OBJCOPY       := $(CROSS)objcopy
 
 ifeq ($(TARGET_N64),1)
   TARGET_CFLAGS := -nostdinc -DTARGET_N64 -D_LANGUAGE_C
   CC_CFLAGS := -fno-builtin
 endif
 
-INCLUDE_DIRS := include $(BUILD_DIR) $(BUILD_DIR)/include src .
+INCLUDE_DIRS += include $(BUILD_DIR) $(BUILD_DIR)/include src . include/hvqm
 ifeq ($(TARGET_N64),1)
   INCLUDE_DIRS += include/libc
 endif
@@ -355,94 +503,71 @@ endif
 C_DEFINES := $(foreach d,$(DEFINES),-D$(d))
 DEF_INC_CFLAGS := $(foreach i,$(INCLUDE_DIRS),-I$(i)) $(C_DEFINES)
 
-IQUE_AS := $(IQUE_EGCS_PATH)/as
-IQUE_ASFLAGS = -mcpu=r4300 -mabi=32 $(MIPSISET) $(foreach i,$(INCLUDE_DIRS),-I$(i)) $(foreach d,$(DEFINES),--defsym $(d))
-
-ifeq ($(VERSION),cn)
-  IQUE_REASSEMBLED_ASM_FILES := $(wildcard asm/*.s) $(wildcard lib/asm/*.s)
-  IQUE_REASSEMBLED_ASM_FILES := $(filter-out asm/ipl3_font.s,$(IQUE_REASSEMBLED_ASM_FILES))
-  IQUE_REASSEMBLED := $(foreach file,$(IQUE_REASSEMBLED_ASM_FILES),$(BUILD_DIR)/$(file:.s=.o))
-  $(IQUE_REASSEMBLED): AS := $(IQUE_AS)
-  $(IQUE_REASSEMBLED): MIPSISET :=
-  $(IQUE_REASSEMBLED): ASFLAGS = $(IQUE_ASFLAGS)
-endif
-
-IQUE_CC := COMPILER_PATH=$(IQUE_EGCS_PATH) $(IQUE_EGCS_PATH)/gcc
-IQUE_CFLAGS = -G 0 $(TARGET_CFLAGS) $(OPT_FLAGS) -D__sgi -DBBPLAYER -mcpu=r4300 -mgp32 -fno-pic -Wa,--strip-local-absolute $(MIPSISET) $(DEF_INC_CFLAGS)
-
-# iQue recompiled some files with a different compiler
-ifeq ($(VERSION),cn)
-  IQUE_RECOMPILED_SRC_GAME := $(addprefix $(BUILD_DIR)/src/game/,rumble_init.o level_update.o memory.o area.o print.o ingame_menu.o hud.o cn_common_syms_1.o cn_common_syms_2.o) $(addprefix $(BUILD_DIR)/src/menu/,title_screen.o intro_geo.o file_select.o star_select.o)
-  IQUE_RECOMPILED_LIB_SRC  := $(ULTRA_O_FILES)
-  # osDriveRomInit is weird
-  IQUE_RECOMPILED_LIB_SRC := $(filter-out $(addprefix $(BUILD_DIR)/lib/src/,osDriveRomInit.o),$(IQUE_RECOMPILED_LIB_SRC))
-  IQUE_RECOMPILED_LIBGCC_SRC  := $(LIBGCC_O_FILES)
-  IQUE_RECOMPILED = $(IQUE_RECOMPILED_SRC_GAME) $(IQUE_RECOMPILED_LIB_SRC) $(IQUE_RECOMPILED_LIBGCC_SRC)
-  $(IQUE_RECOMPILED): CC := $(IQUE_CC)
-  $(IQUE_RECOMPILED): MIPSISET :=
-  $(IQUE_RECOMPILED): CFLAGS = $(IQUE_CFLAGS)
-endif
-
-# Prefer clang as C preprocessor if installed on the system
-ifneq (,$(call find-command,clang))
-  CPP      := clang
-  CPPFLAGS := -E -P -x c -Wno-trigraphs -D_LANGUAGE_ASSEMBLY $(DEF_INC_CFLAGS)
-else
-  CPP      := cpp
-  CPPFLAGS := -P -Wno-trigraphs -D_LANGUAGE_ASSEMBLY $(DEF_INC_CFLAGS)
-endif
-
-# Check code syntax with host compiler
-CC_CHECK := gcc
-CC_CHECK_CFLAGS := -fsyntax-only -fsigned-char $(CC_CFLAGS) $(TARGET_CFLAGS) -std=gnu90 -Wall -Wextra -Wno-format-security -Wno-main -DNON_MATCHING -DAVOID_UB $(DEF_INC_CFLAGS)
-
 # C compiler options
 CFLAGS = -G 0 $(OPT_FLAGS) $(TARGET_CFLAGS) $(MIPSISET) $(DEF_INC_CFLAGS)
 ifeq ($(COMPILER),gcc)
   CFLAGS += -mno-shared -march=vr4300 -mfix4300 -mabi=32 -mhard-float -mdivide-breaks -fno-stack-protector -fno-common -fno-zero-initialized-in-bss -fno-PIC -mno-abicalls -fno-strict-aliasing -fno-inline-functions -ffreestanding -fwrapv -Wall -Wextra
+  CFLAGS += -Wno-missing-braces
+else ifeq ($(COMPILER),clang)
+  CFLAGS += -mfpxx -target mips -mabi=32 -G 0 -mhard-float -fomit-frame-pointer -fno-stack-protector -fno-common -I include -I src/ -I $(BUILD_DIR)/include -fno-PIC -mno-abicalls -fno-strict-aliasing -fno-inline-functions -ffreestanding -fwrapv -Wall -Wextra
+  CFLAGS += -Wno-missing-braces
 else
   CFLAGS += -non_shared -Wab,-r4300_mul -Xcpluscomm -Xfullwarn -signed -32
 endif
+ASMFLAGS = -G 0 $(OPT_FLAGS) $(TARGET_CFLAGS) -mips3 $(DEF_INC_CFLAGS) -mno-shared -march=vr4300 -mfix4300 -mabi=32 -mhard-float -mdivide-breaks -fno-stack-protector -fno-common -fno-zero-initialized-in-bss -fno-PIC -mno-abicalls -fno-strict-aliasing -fno-inline-functions -ffreestanding -fwrapv -Wall -Wextra
 
-ASFLAGS   := -march=vr4300 -mabi=32 $(foreach i,$(INCLUDE_DIRS),-I$(i)) $(foreach d,$(DEFINES),--defsym $(d))
+ASFLAGS     := -march=vr4300 -mabi=32 $(foreach i,$(INCLUDE_DIRS),-I$(i)) $(foreach d,$(DEFINES),--defsym $(d))
 RSPASMFLAGS := $(foreach d,$(DEFINES),-definelabel $(subst =, ,$(d)))
 
-ifeq ($(shell getconf LONG_BIT), 32)
-  # Work around memory allocation bug in QEMU
-  export QEMU_GUEST_BASE := 1
-else
-  # Ensure that gcc treats the code as 32-bit
-  CC_CHECK_CFLAGS += -m32
-endif
-
-# Prevent a crash with -sopt
-export LANG := C
+# C preprocessor flags
+CPPFLAGS := -P -Wno-trigraphs $(DEF_INC_CFLAGS)
 
 #==============================================================================#
 # Miscellaneous Tools                                                          #
 #==============================================================================#
 
 # N64 tools
-MIO0TOOL              := $(TOOLS_DIR)/sm64tools/mio0
-N64CKSUM              := $(TOOLS_DIR)/sm64tools/n64cksum
-N64GRAPHICS           := $(TOOLS_DIR)/sm64tools/n64graphics
-N64GRAPHICS_CI        := $(TOOLS_DIR)/sm64tools/n64graphics_ci
+YAY0TOOL              := $(TOOLS_DIR)/slienc
+MIO0TOOL              := $(TOOLS_DIR)/mio0
+RNCPACK               := $(TOOLS_DIR)/rncpack
+FILESIZER             := $(TOOLS_DIR)/filesizer
+N64CKSUM              := $(TOOLS_DIR)/n64cksum
+N64GRAPHICS           := $(TOOLS_DIR)/n64graphics
+N64GRAPHICS_CI        := $(TOOLS_DIR)/n64graphics_ci
+BINPNG                := $(TOOLS_DIR)/BinPNG.py
 TEXTCONV              := $(TOOLS_DIR)/textconv
 AIFF_EXTRACT_CODEBOOK := $(TOOLS_DIR)/aiff_extract_codebook
 VADPCM_ENC            := $(TOOLS_DIR)/vadpcm_enc
 EXTRACT_DATA_FOR_MIO  := $(TOOLS_DIR)/extract_data_for_mio
 SKYCONV               := $(TOOLS_DIR)/skyconv
+FIXLIGHTS_PY          := $(TOOLS_DIR)/fixlights.py
+FLIPS                 := $(TOOLS_DIR)/flips
+ifeq ($(GZIPVER),std)
+GZIP                  := gzip
+else
+GZIP                  := libdeflate-gzip
+endif
 # Use the system installed armips if available. Otherwise use the one provided with this repository.
 ifneq (,$(call find-command,armips))
   RSPASM              := armips
 else
   RSPASM              := $(TOOLS_DIR)/armips
 endif
-ENDIAN_BITWIDTH       := $(BUILD_DIR)/endian-and-bitwidth
-EMULATOR = mupen64plus
-EMU_FLAGS = --noosd
-LOADER = loader64
-LOADER_FLAGS = -vwf
+
+ifneq (,$(call find-command,wslview))
+    EMULATOR = "/mnt/c/Program Files (x86)/parallel-launcher/parallel-launcher.exe"
+else
+    EMULATOR = parallel-launcher
+endif
+
+EMU_FLAGS =
+
+ifneq (,$(call find-command,wslview))
+    LOADER = ./$(TOOLS_DIR)/UNFLoader.exe
+else
+    LOADER = ./$(TOOLS_DIR)/UNFLoader
+endif
+
 SHA1SUM = sha1sum
 PRINT = printf
 
@@ -452,14 +577,11 @@ RED     := \033[0;31m
 GREEN   := \033[0;32m
 BLUE    := \033[0;34m
 YELLOW  := \033[0;33m
-BLINK   := \033[33;5m
+BLINK   := \033[32;5m
 endif
 
-# Use objcopy instead of extract_data_for_mio to get 16-byte aligned padding
-ifeq ($(COMPILER),gcc)
-  EXTRACT_DATA_FOR_MIO := $(OBJCOPY) -O binary --only-section=.data
-endif
-ifeq ($(VERSION),cn)
+# For non-IDO, use objcopy instead of extract_data_for_mio
+ifneq ($(COMPILER),ido)
   EXTRACT_DATA_FOR_MIO := $(OBJCOPY) -O binary --only-section=.data
 endif
 
@@ -473,42 +595,66 @@ endef
 #==============================================================================#
 
 all: $(ROM)
-ifeq ($(COMPARE),1)
-	@$(PRINT) "$(GREEN)Checking if ROM matches.. $(NO_COL)\n"
-	@$(SHA1SUM) --quiet -c $(TARGET).sha1 && $(PRINT) "$(TARGET): $(GREEN)OK$(NO_COL)\n" || ($(PRINT) "$(YELLOW)Building the ROM file has succeeded, but does not match the original ROM.\nThis is expected, and not an error, if you are making modifications.\nTo silence this message, use 'make COMPARE=0.' $(NO_COL)\n" && false)
-endif
+	@$(SHA1SUM) $(ROM)
+	@$(PRINT) "${BLINK}Build succeeded.\n$(NO_COL)"
+	@$(PRINT) "==== Build Options ====$(NO_COL)\n"
+	@$(PRINT) "${GREEN}Version:        $(BLUE)$(VERSION)$(NO_COL)\n"
+	@$(PRINT) "${GREEN}Microcode:      $(BLUE)$(GRUCODE)$(NO_COL)\n"
+	@$(PRINT) "${GREEN}Console:        $(BLUE)$(CONSOLE)$(NO_COL)\n"
 
 clean:
 	$(RM) -r $(BUILD_DIR_BASE)
 
+rebuildtools:
+	$(MAKE) -C tools distclean
+	$(MAKE) -C tools
+
 distclean: clean
 	$(PYTHON) extract_assets.py --clean
 	$(MAKE) -C $(TOOLS_DIR) clean
-	$(MAKE) -C $(TOOLS_DIR)/sm64tools clean
 
 test: $(ROM)
 	$(EMULATOR) $(EMU_FLAGS) $<
 
-load: $(ROM)
-	$(LOADER) $(LOADER_FLAGS) $<
+test-pj64: $(ROM)
+	wine ~/Desktop/new64/Project64.exe $<
+# someone2639
+
+# download and extract most recent unfloader build if needed
+$(LOADER):
+ifeq (,$(wildcard $(LOADER)))
+	@$(PRINT) "Downloading latest UNFLoader...$(NO_COL)\n"
+	$(PYTHON) $(TOOLS_DIR)/get_latest_unfloader.py $(TOOLS_DIR)
+endif
+
+load: $(ROM) $(LOADER)
+	$(LOADER) -r $<
+
+unf: $(ROM) $(LOADER)
+	$(LOADER) -d -r $<
 
 libultra: $(BUILD_DIR)/libultra.a
 
+patch: $(ROM)
+	$(FLIPS) --create --bps $(shell python3 tools/detect_baseroms.py $(VERSION)) $(ROM) $(BUILD_DIR)/$(TARGET_STRING).bps
+
 # Extra object file dependencies
-$(BUILD_DIR)/asm/ipl3_font.o:         $(IPL3_RAW_FILES)
+$(BUILD_DIR)/asm/ipl3.o:              $(IPL3_RAW_FILES)
 $(BUILD_DIR)/src/game/crash_screen.o: $(CRASH_TEXTURE_C_FILES)
-$(BUILD_DIR)/lib/rsp.o:               $(BUILD_DIR)/rsp/rspboot.bin $(BUILD_DIR)/rsp/fast3d.bin $(BUILD_DIR)/rsp/audio.bin
-$(SOUND_BIN_DIR)/sound_data.o:        $(SOUND_BIN_DIR)/sound_data.ctl.inc.c $(SOUND_BIN_DIR)/sound_data.tbl.inc.c $(SOUND_BIN_DIR)/sequences.bin.inc.c $(SOUND_BIN_DIR)/bank_sets.inc.c
+$(BUILD_DIR)/src/game/version.o:      $(BUILD_DIR)/src/game/version_data.h
+$(BUILD_DIR)/lib/aspMain.o:           $(BUILD_DIR)/rsp/audio.bin
+$(SOUND_BIN_DIR)/sound_data.o:        $(SOUND_BIN_DIR)/sound_data.ctl $(SOUND_BIN_DIR)/sound_data.tbl $(SOUND_BIN_DIR)/sequences.bin $(SOUND_BIN_DIR)/bank_sets
 $(BUILD_DIR)/levels/scripts.o:        $(BUILD_DIR)/include/level_headers.h
 
-ifeq ($(VERSION_SH_CN),true)
+ifeq ($(VERSION),sh)
   $(BUILD_DIR)/src/audio/load_sh.o: $(SOUND_BIN_DIR)/bank_sets.inc.c $(SOUND_BIN_DIR)/sequences_header.inc.c $(SOUND_BIN_DIR)/ctl_header.inc.c $(SOUND_BIN_DIR)/tbl_header.inc.c
 endif
 
 $(CRASH_TEXTURE_C_FILES): TEXTURE_ENCODING := u32
 
 ifeq ($(COMPILER),gcc)
-  $(BUILD_DIR)/lib/src/math/%.o: CFLAGS += -fno-builtin
+$(BUILD_DIR)/src/libz/%.o: OPT_FLAGS := -Os
+$(BUILD_DIR)/src/libz/%.o: CFLAGS += -Wno-implicit-fallthrough -Wno-unused-parameter -Wno-pointer-sign
 endif
 
 ifeq ($(VERSION),eu)
@@ -533,9 +679,25 @@ else
     $(BUILD_DIR)/bin/segment2.o: $(BUILD_DIR)/text/$(VERSION)/define_text.inc.c
   endif
 endif
-$(BUILD_DIR)/bin/segment2.o: $(BUILD_DIR)/text/debug_text.raw.inc.c
 
-ALL_DIRS := $(BUILD_DIR) $(addprefix $(BUILD_DIR)/,$(SRC_DIRS) $(GODDARD_SRC_DIRS) $(ULTRA_SRC_DIRS) $(ULTRA_BIN_DIRS) $(LIBGCC_SRC_DIRS) $(BIN_DIRS) $(TEXTURE_DIRS) $(TEXT_DIRS) $(SOUND_SAMPLE_DIRS) $(addprefix levels/,$(LEVEL_DIRS)) rsp include) $(MIO0_DIR) $(addprefix $(MIO0_DIR)/,$(VERSION)) $(SOUND_BIN_DIR) $(SOUND_BIN_DIR)/sequences/$(VERSION)
+$(BUILD_DIR)/src/usb/usb.o: OPT_FLAGS := -O0
+$(BUILD_DIR)/src/usb/usb.o: CFLAGS += -Wno-unused-variable -Wno-sign-compare -Wno-unused-function
+$(BUILD_DIR)/src/usb/debug.o: OPT_FLAGS := -O0
+$(BUILD_DIR)/src/usb/debug.o: CFLAGS += -Wno-unused-parameter -Wno-maybe-uninitialized
+# File specific opt flags
+$(BUILD_DIR)/src/audio/heap.o:          OPT_FLAGS := -Os -fno-jump-tables
+$(BUILD_DIR)/src/audio/synthesis.o:     OPT_FLAGS := -Os -fno-jump-tables
+
+$(BUILD_DIR)/src/engine/surface_collision.o:  OPT_FLAGS := $(COLLISION_OPT_FLAGS)
+$(BUILD_DIR)/src/engine/math_util.o:          OPT_FLAGS := $(MATH_UTIL_OPT_FLAGS)
+$(BUILD_DIR)/src/game/rendering_graph_node.o: OPT_FLAGS := $(GRAPH_NODE_OPT_FLAGS)
+
+# $(info OPT_FLAGS:            $(OPT_FLAGS))
+# $(info COLLISION_OPT_FLAGS:  $(COLLISION_OPT_FLAGS))
+# $(info MATH_UTIL_OPT_FLAGS:  $(MATH_UTIL_OPT_FLAGS))
+# $(info GRAPH_NODE_OPT_FLAGS: $(GRAPH_NODE_OPT_FLAGS))
+
+ALL_DIRS := $(BUILD_DIR) $(addprefix $(BUILD_DIR)/,$(SRC_DIRS) asm/debug $(GODDARD_SRC_DIRS) $(LIBZ_SRC_DIRS) $(ULTRA_BIN_DIRS) $(BIN_DIRS) $(TEXTURE_DIRS) $(TEXT_DIRS) $(SOUND_SAMPLE_DIRS) $(addprefix levels/,$(LEVEL_DIRS)) rsp include) $(YAY0_DIR) $(addprefix $(YAY0_DIR)/,$(VERSION)) $(SOUND_BIN_DIR) $(SOUND_BIN_DIR)/sequences/$(VERSION)
 
 # Make sure build directory exists before compiling anything
 DUMMY != mkdir -p $(ALL_DIRS)
@@ -544,6 +706,8 @@ $(BUILD_DIR)/include/text_strings.h: $(BUILD_DIR)/include/text_menu_strings.h
 $(BUILD_DIR)/src/menu/file_select.o: $(BUILD_DIR)/include/text_strings.h
 $(BUILD_DIR)/src/menu/star_select.o: $(BUILD_DIR)/include/text_strings.h
 $(BUILD_DIR)/src/game/ingame_menu.o: $(BUILD_DIR)/include/text_strings.h
+$(BUILD_DIR)/src/game/puppycam2.o:   $(BUILD_DIR)/include/text_strings.h
+
 
 
 #==============================================================================#
@@ -561,14 +725,14 @@ $(BUILD_DIR)/%.inc.c: %.png
 	$(V)$(N64GRAPHICS) -s $(TEXTURE_ENCODING) -i $@ -g $< -f $(lastword ,$(subst ., ,$(basename $<)))
 
 # Color Index CI8
-$(BUILD_DIR)/%.ci8: %.ci8.png
-	$(call print,Converting:,$<,$@)
-	$(V)$(N64GRAPHICS_CI) -i $@ -g $< -f ci8
+$(BUILD_DIR)/%.ci8.inc.c: %.ci8.png
+	$(call print,Converting CI:,$<,$@)
+	$(V)$(BINPNG) $< $@ 8
 
 # Color Index CI4
-$(BUILD_DIR)/%.ci4: %.ci4.png
-	$(call print,Converting:,$<,$@)
-	$(V)$(N64GRAPHICS_CI) -i $@ -g $< -f ci4
+$(BUILD_DIR)/%.ci4.inc.c: %.ci4.png
+	$(call print,Converting CI:,$<,$@)
+	$(V)$(BINPNG) $< $@ 4
 
 
 #==============================================================================#
@@ -580,9 +744,11 @@ $(BUILD_DIR)/%.ci4: %.ci4.png
 $(BUILD_DIR)/%.elf: $(BUILD_DIR)/%.o
 	$(call print,Linking ELF file:,$<,$@)
 	$(V)$(LD) -e 0 -Ttext=$(SEGMENT_ADDRESS) -Map $@.map -o $@ $<
-# Override for leveldata.elf, which otherwise matches the above pattern
+# Override for leveldata.elf, which otherwise matches the above pattern.
+# Has to be a static pattern rule for make-4.4 and above to trigger the second
+# expansion.
 .SECONDEXPANSION:
-$(BUILD_DIR)/levels/%/leveldata.elf: $(BUILD_DIR)/levels/%/leveldata.o $(BUILD_DIR)/bin/$$(TEXTURE_BIN).elf
+$(LEVEL_ELF_FILES): $(BUILD_DIR)/levels/%/leveldata.elf: $(BUILD_DIR)/levels/%/leveldata.o $(BUILD_DIR)/bin/$$(TEXTURE_BIN).elf
 	$(call print,Linking ELF file:,$<,$@)
 	$(V)$(LD) -e 0 -Ttext=$(SEGMENT_ADDRESS) -Map $@.map --just-symbols=$(BUILD_DIR)/bin/$(TEXTURE_BIN).elf -o $@ $<
 
@@ -594,16 +760,19 @@ $(BUILD_DIR)/levels/%/leveldata.bin: $(BUILD_DIR)/levels/%/leveldata.elf
 	$(call print,Extracting compressible data from:,$<,$@)
 	$(V)$(EXTRACT_DATA_FOR_MIO) $< $@
 
-# Compress binary file
-$(BUILD_DIR)/%.mio0: $(BUILD_DIR)/%.bin
-	$(call print,Compressing:,$<,$@)
-	$(V)$(MIO0TOOL) $< $@
-
-# convert binary mio0 to object file
-$(BUILD_DIR)/%.mio0.o: $(BUILD_DIR)/%.mio0
-	$(call print,Converting MIO0 to ELF:,$<,$@)
-	$(V)$(LD) -r -b binary $< -o $@
-
+ifeq ($(COMPRESS),gzip)
+include compression/gziprules.mk
+else ifeq ($(COMPRESS),rnc1)
+include compression/rnc1rules.mk
+else ifeq ($(COMPRESS),rnc2)
+include compression/rnc2rules.mk
+else ifeq ($(COMPRESS),yay0)
+include compression/yay0rules.mk
+else ifeq ($(COMPRESS),mio0)
+include compression/mio0rules.mk
+else ifeq ($(COMPRESS),uncomp)
+include compression/uncomprules.mk
+endif
 
 #==============================================================================#
 # Sound File Generation                                                        #
@@ -611,23 +780,15 @@ $(BUILD_DIR)/%.mio0.o: $(BUILD_DIR)/%.mio0
 
 $(BUILD_DIR)/%.table: %.aiff
 	$(call print,Extracting codebook:,$<,$@)
-	$(V)$(AIFF_EXTRACT_CODEBOOK) $< >$@
+	$(V)$(AIFF_EXTRACT_CODEBOOK) $< $@
 
 $(BUILD_DIR)/%.aifc: $(BUILD_DIR)/%.table %.aiff
 	$(call print,Encoding ADPCM:,$(word 2,$^),$@)
 	$(V)$(VADPCM_ENC) -c $^ $@
 
-$(ENDIAN_BITWIDTH): $(TOOLS_DIR)/determine-endian-bitwidth.c
-	@$(PRINT) "$(GREEN)Generating endian-bitwidth $(NO_COL)\n"
-	$(V)$(CC) -c $(CFLAGS) -o $@.dummy2 $< 2>$@.dummy1; true
-	$(V)grep -o 'msgbegin --endian .* --bitwidth .* msgend' $@.dummy1 > $@.dummy2
-	$(V)head -n1 <$@.dummy2 | cut -d' ' -f2-5 > $@
-	$(V)$(RM) $@.dummy1
-	$(V)$(RM) $@.dummy2
-
-$(SOUND_BIN_DIR)/sound_data.ctl: sound/sound_banks/ $(SOUND_BANK_FILES) $(SOUND_SAMPLE_AIFCS) $(ENDIAN_BITWIDTH)
+$(SOUND_BIN_DIR)/sound_data.ctl: sound/sound_banks/ $(SOUND_BANK_FILES) $(SOUND_SAMPLE_AIFCS)
 	@$(PRINT) "$(GREEN)Generating:  $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(PYTHON) $(TOOLS_DIR)/assemble_sound.py $(BUILD_DIR)/sound/samples/ sound/sound_banks/ $(SOUND_BIN_DIR)/sound_data.ctl $(SOUND_BIN_DIR)/ctl_header $(SOUND_BIN_DIR)/sound_data.tbl $(SOUND_BIN_DIR)/tbl_header $(C_DEFINES) $$(cat $(ENDIAN_BITWIDTH))
+	$(V)$(PYTHON) $(TOOLS_DIR)/assemble_sound.py $(BUILD_DIR)/sound/samples/ sound/sound_banks/ $(SOUND_BIN_DIR)/sound_data.ctl $(SOUND_BIN_DIR)/ctl_header $(SOUND_BIN_DIR)/sound_data.tbl $(SOUND_BIN_DIR)/tbl_header $(C_DEFINES)
 
 $(SOUND_BIN_DIR)/sound_data.tbl: $(SOUND_BIN_DIR)/sound_data.ctl
 	@true
@@ -638,9 +799,9 @@ $(SOUND_BIN_DIR)/ctl_header: $(SOUND_BIN_DIR)/sound_data.ctl
 $(SOUND_BIN_DIR)/tbl_header: $(SOUND_BIN_DIR)/sound_data.ctl
 	@true
 
-$(SOUND_BIN_DIR)/sequences.bin: $(SOUND_BANK_FILES) sound/sequences.json $(SOUND_SEQUENCE_DIRS) $(SOUND_SEQUENCE_FILES) $(ENDIAN_BITWIDTH)
+$(SOUND_BIN_DIR)/sequences.bin: $(SOUND_BANK_FILES) sound/sequences.json $(SOUND_SEQUENCE_DIRS) $(SOUND_SEQUENCE_FILES)
 	@$(PRINT) "$(GREEN)Generating:  $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(PYTHON) $(TOOLS_DIR)/assemble_sound.py --sequences $@ $(SOUND_BIN_DIR)/sequences_header $(SOUND_BIN_DIR)/bank_sets sound/sound_banks/ sound/sequences.json $(SOUND_SEQUENCE_FILES) $(C_DEFINES) $$(cat $(ENDIAN_BITWIDTH))
+	$(V)$(PYTHON) $(TOOLS_DIR)/assemble_sound.py --sequences $@ $(SOUND_BIN_DIR)/sequences_header $(SOUND_BIN_DIR)/bank_sets sound/sound_banks/ sound/sequences.json $(SOUND_SEQUENCE_FILES) $(C_DEFINES)
 
 $(SOUND_BIN_DIR)/bank_sets: $(SOUND_BIN_DIR)/sequences.bin
 	@true
@@ -674,209 +835,53 @@ $(BUILD_DIR)/assets/demo_data.c: assets/demo_data.json $(wildcard assets/demos/*
 	$(V)$(PYTHON) $(TOOLS_DIR)/demo_data_converter.py assets/demo_data.json $(DEF_INC_CFLAGS) > $@
 
 # Encode in-game text strings
-$(BUILD_DIR)/$(CHARMAP): $(CHARMAP)
-	$(call print,Preprocessing charmap:,$<,$@)
-	$(V)$(CPP) $(CPPFLAGS) -DBUILD_DIR=$(BUILD_DIR) -MMD -MP -MT $@ -MF $@.d -o $@ $<
-$(BUILD_DIR)/$(CHARMAP_DEBUG): $(CHARMAP)
-	$(call print,Preprocessing charmap:,$<,$@)
-	$(V)$(CPP) $(CPPFLAGS) -DCHARMAP_DEBUG -DBUILD_DIR=$(BUILD_DIR) -MMD -MP -MT $@ -MF $@.d -o $@ $<
-$(BUILD_DIR)/include/text_strings.h: include/text_strings.h.in $(BUILD_DIR)/$(CHARMAP)
+$(BUILD_DIR)/include/text_strings.h: include/text_strings.h.in
 	$(call print,Encoding:,$<,$@)
-	$(V)$(TEXTCONV) $(BUILD_DIR)/$(CHARMAP) $< $@
+	$(V)$(TEXTCONV) charmap.txt $< $@
 $(BUILD_DIR)/include/text_menu_strings.h: include/text_menu_strings.h.in
 	$(call print,Encoding:,$<,$@)
 	$(V)$(TEXTCONV) charmap_menu.txt $< $@
 $(BUILD_DIR)/text/%/define_courses.inc.c: text/define_courses.inc.c text/%/courses.h
 	@$(PRINT) "$(GREEN)Preprocessing: $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(CPP) $(CPPFLAGS) $< -o - -I text/$*/ | $(TEXTCONV) $(BUILD_DIR)/$(CHARMAP) - $@
+	$(V)$(CPP) $(CPPFLAGS) $< -o - -I text/$*/ | $(TEXTCONV) charmap.txt - $@
 $(BUILD_DIR)/text/%/define_text.inc.c: text/define_text.inc.c text/%/courses.h text/%/dialogs.h
 	@$(PRINT) "$(GREEN)Preprocessing: $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(CPP) $(CPPFLAGS) $< -o - -I text/$*/ | $(TEXTCONV) $(BUILD_DIR)/$(CHARMAP) - $@
-$(BUILD_DIR)/text/debug_text.raw.inc.c: text/debug_text.inc.c $(BUILD_DIR)/$(CHARMAP_DEBUG)
-	@$(PRINT) "$(GREEN)Preprocessing: $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(CPP) $(CPPFLAGS) $< -o - -I text/$*/ | $(TEXTCONV) $(BUILD_DIR)/$(CHARMAP_DEBUG) - $@
+	$(V)$(CPP) $(CPPFLAGS) $< -o - -I text/$*/ | $(TEXTCONV) charmap.txt - $@
 
 # Level headers
 $(BUILD_DIR)/include/level_headers.h: levels/level_headers.h.in
 	$(call print,Preprocessing level headers:,$<,$@)
 	$(V)$(CPP) $(CPPFLAGS) -I . $< | sed -E 's|(.+)|#include "\1"|' > $@
 
-# Run asm_processor on files that have NON_MATCHING code
-ifeq ($(NON_MATCHING),0)
-$(GLOBAL_ASM_O_FILES): CC := $(V)$(PYTHON) $(TOOLS_DIR)/asm_processor/build.py $(CC) -- $(AS) $(ASFLAGS) --
-endif
-
-# Rebuild files with 'GLOBAL_ASM' if the NON_MATCHING flag changes.
-$(GLOBAL_ASM_O_FILES): $(GLOBAL_ASM_DEP).$(NON_MATCHING)
-$(GLOBAL_ASM_DEP).$(NON_MATCHING):
-	@$(RM) $(GLOBAL_ASM_DEP).*
-	$(V)touch $@
-
+# Generate version_data.h
+$(BUILD_DIR)/src/game/version_data.h: tools/make_version.sh
+	@$(PRINT) "$(GREEN)Generating:  $(BLUE)$@ $(NO_COL)\n"
+	$(V)sh tools/make_version.sh $(CROSS) > $@
 
 #==============================================================================#
 # Compilation Recipes                                                          #
 #==============================================================================#
 
 # Compile C code
+ifeq ($(FIXLIGHTS),1)
+# This must not be run multiple times at once, so we run it ahead of time rather than in a rule
+DUMMY != $(PYTHON) $(FIXLIGHTS_PY) actors
+DUMMY != $(PYTHON) $(FIXLIGHTS_PY) levels
+endif
 $(BUILD_DIR)/%.o: %.c
 	$(call print,Compiling:,$<,$@)
-	$(V)$(CC_CHECK) $(CC_CHECK_CFLAGS) -MMD -MP -MT $@ -MF $(BUILD_DIR)/$*.d $<
-	$(V)$(CC) -c $(CFLAGS) -o $@ $<
-ifeq ($(VERSION),cn)
-	$(V)$(TOOLS_DIR)/patch_elf_32bit $@
-endif
+	$(V)$(CC) -c $(CFLAGS) -MMD -MF $(BUILD_DIR)/$*.d  -o $@ $<
+$(BUILD_DIR)/%.o: %.cpp
+	$(call print,Compiling (C++):,$<,$@)
+	$(V)$(CXX) -c $(CFLAGS) -std=c++17 -Wno-register -MMD -MF $(BUILD_DIR)/$*.d  -o $@ $<
 $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.c
 	$(call print,Compiling:,$<,$@)
-	$(V)$(CC_CHECK) $(CC_CHECK_CFLAGS) -MMD -MP -MT $@ -MF $(BUILD_DIR)/$*.d $<
-	$(V)$(CC) -c $(CFLAGS) -o $@ $<
-ifeq ($(VERSION),cn)
-	$(V)$(TOOLS_DIR)/patch_elf_32bit $@
-endif
-
-# Alternate compiler flags needed for matching
-ifeq ($(COMPILER),ido)
-  $(BUILD_DIR)/levels/%/leveldata.o: OPT_FLAGS := -g
-  $(BUILD_DIR)/actors/%.o:           OPT_FLAGS := -g
-  $(BUILD_DIR)/bin/%.o:              OPT_FLAGS := -g
-  $(BUILD_DIR)/src/goddard/%.o:      OPT_FLAGS := -g
-  $(BUILD_DIR)/src/goddard/%.o:      MIPSISET := -mips1
-  $(BUILD_DIR)/lib/asm/__osDisableInt.o: MIPSISET := -mips2
-  $(BUILD_DIR)/lib/asm/bcopy.o:      MIPSISET := -mips2
-  $(BUILD_DIR)/lib/src/%.o:          OPT_FLAGS :=
-  $(BUILD_DIR)/lib/src/math/%.o:     OPT_FLAGS := -O2
-  $(BUILD_DIR)/lib/src/math/ll%.o:   OPT_FLAGS :=
-  $(BUILD_DIR)/lib/src/math/ll%.o:   MIPSISET := -mips3 -32
-  $(BUILD_DIR)/lib/src/ldiv.o:       OPT_FLAGS := -O2
-  $(BUILD_DIR)/lib/src/string.o:     OPT_FLAGS := -O2
-  $(BUILD_DIR)/lib/src/gu%.o:        OPT_FLAGS := -O3
-  $(BUILD_DIR)/lib/src/al%.o:        OPT_FLAGS := -O3
-  ifeq ($(VERSION_SH_CN),true)
-    $(BUILD_DIR)/lib/src/_Ldtob.o:   OPT_FLAGS := -O3
-    $(BUILD_DIR)/lib/src/_Litob.o:   OPT_FLAGS := -O3
-    $(BUILD_DIR)/lib/src/_Printf.o:  OPT_FLAGS := -O3
-    $(BUILD_DIR)/lib/src/sprintf.o:  OPT_FLAGS := -O3
-    $(BUILD_DIR)/lib/src/osDriveRomInit.o: OPT_FLAGS := -g
-  endif
-  ifeq ($(VERSION),cn)
-    $(BUILD_DIR)/lib/src/osAiSetFrequency.o:    MIPSISET := -mips2
-    $(BUILD_DIR)/lib/src/osVirtualToPhysical.o: OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osInitializeIQueWrapper.o: OPT_FLAGS := -O2
-    $(BUILD_DIR)/lib/src/osAiGetLength.o:       OPT_FLAGS := -O2
-    $(BUILD_DIR)/lib/src/osAiSetFrequency.o:    OPT_FLAGS := -O2
-    $(BUILD_DIR)/lib/src/math/cosf.o:           OPT_FLAGS := -O2 -mips2
-    $(BUILD_DIR)/lib/src/guOrthoF.o:            OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/guPerspectiveF.o:      OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osAiSetNextBuffer.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osContStartReadData.o: OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osContInit.o:          OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/math/sinf.o:           OPT_FLAGS := -O2 -mips2
-    $(BUILD_DIR)/lib/src/math/ll%.o:            OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/string.o:              OPT_FLAGS := -O2 -mips2
-    $(BUILD_DIR)/lib/src/sprintf.o:             OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSyncPrintf.o:        OPT_FLAGS := -O2
-    $(BUILD_DIR)/lib/src/_Printf.o:             OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osCreateMesgQueue.o:   OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osRecvMesg.o:          OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSendMesg.o:          OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSetEventMesg.o:      OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSpTaskLoadGo.o:      OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSpTaskYield.o:       OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSpTaskYielded.o:     OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSiRawStartDma.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSiCreateAccessQueue.o: OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osCreateThread.o:      OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSetThreadPri.o:      OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osStartThread.o:       OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osDequeueThread.o:   OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osGetCurrFaultedThread.o: OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osGetTime.o:           OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSetTime.o:           OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osSetTimer.o:          OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osTimer.o:             OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osCreateViManager.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osViSetEvent.o:        OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osViSetMode.o:         OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osViSetSpecialFeatures.o: OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osViSwapBuffer.o:      OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osViSwapContext.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osViBlack.o:           OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/guRotateF.o:           OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEepromProbe.o:       OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEepromLongWrite.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEepromLongRead.o:    OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osCreatePiManager.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEPiRawStartDma.o:    OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/epidma.o:              OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osCartRomInit.o:       OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osDevMgrMain.o:      OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osPiCreateAccessQueue.o: OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osPiStartDma.o:        OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/motor.o:               OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osInitialize.o:        OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osAiDeviceBusy.o:    OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/_Litob.o:              OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/_Ldtob.o:              OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osJamMesg.o:           OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSpDeviceBusy.o:    OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSpGetStatus.o:     OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSpSetStatus.o:     OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSpSetPc.o:         OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSpRawStartDma.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSiRawReadIo.o:     OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSiRawWriteIo.o:    OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osDestroyThread.o:     OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osGetThreadPri.o:      OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osYieldThread.o:       OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osViInit.o:          OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osViGetCurrentContext.o: OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEepromRead.o:        OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEepromWrite.o:       OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSetGlobalIntMask.o: OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osResetGlobalIntMask.o: OPT_FLAGS := -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osPiRawStartDma.o:     OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osPiGetCmdQueue.o:     OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEPiRawReadIo.o:    OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/osEPiRawWriteIo.o:   OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/ldiv.o:                OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/__osSiDeviceBusy.o:    OPT_FLAGS := -O2 -mno-abicalls -mips2
-    $(BUILD_DIR)/lib/src/libgcc/%.o:            OPT_FLAGS := -O2 -g -mips2
-  endif
-  ifeq ($(VERSION),eu)
-    $(BUILD_DIR)/lib/src/_Ldtob.o:   OPT_FLAGS := -O3
-    $(BUILD_DIR)/lib/src/_Litob.o:   OPT_FLAGS := -O3
-    $(BUILD_DIR)/lib/src/_Printf.o:  OPT_FLAGS := -O3
-    $(BUILD_DIR)/lib/src/sprintf.o:  OPT_FLAGS := -O3
-
-    # For all audio files other than external.c and port_eu.c, put string literals
-    # in .data. (In Shindou, the port_eu.c string literals also moved to .data.)
-    $(BUILD_DIR)/src/audio/%.o:        OPT_FLAGS := -O2 -use_readwrite_const
-    $(BUILD_DIR)/src/audio/port_eu.o:  OPT_FLAGS := -O2
-  endif
-  ifeq ($(VERSION_JP_US),true)
-    $(BUILD_DIR)/src/audio/%.o:        OPT_FLAGS := -O2 -Wo,-loopunroll,0
-    $(BUILD_DIR)/src/audio/load.o:     OPT_FLAGS := -O2 -Wo,-loopunroll,0 -framepointer
-    # The source-to-source optimizer copt is enabled for audio. This makes it use
-    # acpp, which needs -Wp,-+ to handle C++-style comments.
-    # All other files than external.c should really use copt, but only a few have
-    # been matched so far.
-    $(BUILD_DIR)/src/audio/effects.o:   OPT_FLAGS := -O2 -Wo,-loopunroll,0 -sopt,-inline=sequence_channel_process_sound,-scalaroptimize=1 -Wp,-+
-    $(BUILD_DIR)/src/audio/synthesis.o: OPT_FLAGS := -O2 -Wo,-loopunroll,0 -sopt,-scalaroptimize=1 -Wp,-+
-  endif
-  $(BUILD_DIR)/src/audio/external.o: OPT_FLAGS := -O2 -Wo,-loopunroll,0
-
-# Add a target for build/eu/src/audio/*.copt to make it easier to see debug
-$(BUILD_DIR)/src/audio/%.acpp: src/audio/%.c
-	$(ACPP) $(TARGET_CFLAGS) $(DEF_INC_CFLAGS) -D__sgi -+ $< > $@
-$(BUILD_DIR)/src/audio/%.copt: $(BUILD_DIR)/src/audio/%.acpp
-	$(COPT) -signed -I=$< -CMP=$@ -cp=i -scalaroptimize=1 $(COPTFLAGS)
-$(BUILD_DIR)/src/audio/seqplayer.copt: COPTFLAGS := -inline_manual
-
-endif
+	$(V)$(CC) -c $(CFLAGS) -MMD -MF $(BUILD_DIR)/$*.d  -o $@ $<
 
 # Assemble assembly code
 $(BUILD_DIR)/%.o: %.s
 	$(call print,Assembling:,$<,$@)
-	$(V)$(CPP) $(CPPFLAGS) $< | $(AS) $(ASFLAGS) -MD $(BUILD_DIR)/$*.d -o $@
+	$(V)$(CROSS)gcc -c $(ASMFLAGS) $(foreach i,$(INCLUDE_DIRS),-Wa,-I$(i)) -x assembler-with-cpp -MMD -MF $(BUILD_DIR)/$*.d  -o $@ $<
 
 # Assemble RSP assembly code
 $(BUILD_DIR)/rsp/%.bin $(BUILD_DIR)/rsp/%_data.bin: rsp/%.s
@@ -884,53 +889,67 @@ $(BUILD_DIR)/rsp/%.bin $(BUILD_DIR)/rsp/%_data.bin: rsp/%.s
 	$(V)$(RSPASM) -sym $@.sym $(RSPASMFLAGS) -strequ CODE_FILE $(BUILD_DIR)/rsp/$*.bin -strequ DATA_FILE $(BUILD_DIR)/rsp/$*_data.bin $<
 
 # Run linker script through the C preprocessor
-$(BUILD_DIR)/$(LD_SCRIPT): $(LD_SCRIPT)
+$(BUILD_DIR)/$(LD_SCRIPT): $(LD_SCRIPT) $(BUILD_DIR)/goddard.txt
 	$(call print,Preprocessing linker script:,$<,$@)
-	$(V)$(CPP) $(CPPFLAGS) -DBUILD_DIR=$(BUILD_DIR) -MMD -MP -MT $@ -MF $@.d -o $@ $<
-
-# Link libultra
-$(BUILD_DIR)/libultra.a: $(ULTRA_O_FILES)
-	@$(PRINT) "$(GREEN)Linking libultra:  $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(AR) rcs -o $@ $(ULTRA_O_FILES)
-	$(V)$(TOOLS_DIR)/patch_elf_32bit $@
+	$(V)$(CPP) $(CPPFLAGS) -DBUILD_DIR=$(BUILD_DIR) -DULTRALIB=lib$(ULTRALIB) $(DEBUG_MAP_STACKTRACE_FLAG) -MMD -MP -MT $@ -MF $@.d -o $@ $<
 
 # Link libgoddard
 $(BUILD_DIR)/libgoddard.a: $(GODDARD_O_FILES)
 	@$(PRINT) "$(GREEN)Linking libgoddard:  $(BLUE)$@ $(NO_COL)\n"
 	$(V)$(AR) rcs -o $@ $(GODDARD_O_FILES)
 
-# Link libgcc
-$(BUILD_DIR)/libgcc.a: $(LIBGCC_O_FILES)
-	@$(PRINT) "$(GREEN)Linking libgcc:  $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(AR) rcs -o $@ $(LIBGCC_O_FILES)
+# Link libz
+$(BUILD_DIR)/libz.a: $(LIBZ_O_FILES)
+	@$(PRINT) "$(GREEN)Linking libz:  $(BLUE)$@ $(NO_COL)\n"
+	$(V)$(AR) rcs -o $@ $(LIBZ_O_FILES)
+
+# SS2: Goddard rules to get size
+$(BUILD_DIR)/sm64_prelim.ld: sm64.ld $(O_FILES) $(YAY0_OBJ_FILES) $(SEG_FILES) $(BUILD_DIR)/libgoddard.a $(BUILD_DIR)/libz.a
+	$(call print,Preprocessing preliminary linker script:,$<,$@)
+	$(V)$(CPP) $(CPPFLAGS) -DPRELIMINARY=1 -DBUILD_DIR=$(BUILD_DIR) -DULTRALIB=lib$(ULTRALIB) -MMD -MP -MT $@ -MF $@.d -o $@ $<
+
+$(BUILD_DIR)/sm64_prelim.elf: $(BUILD_DIR)/sm64_prelim.ld
+	@$(PRINT) "$(GREEN)Linking Preliminary ELF file:  $(BLUE)$@ $(NO_COL)\n"
+	$(V)$(LD) --gc-sections -L $(BUILD_DIR) -T $< -Map $(BUILD_DIR)/sm64_prelim.map --no-check-sections $(addprefix -R ,$(SEG_FILES)) -o $@ $(O_FILES) -L$(LIBS_DIR) -l$(ULTRALIB) -Llib $(LINK_LIBRARIES) -u sprintf -u osMapTLB -Llib/gcclib/$(LIBGCCDIR) -lgcc
+
+$(BUILD_DIR)/goddard.txt: $(BUILD_DIR)/sm64_prelim.elf
+	$(call print,Getting Goddard size...)
+	$(V)python3 tools/getGoddardSize.py $(BUILD_DIR)/sm64_prelim.map $(VERSION)
+
+$(BUILD_DIR)/asm/debug/map.o: asm/debug/map.s $(BUILD_DIR)/sm64_prelim.elf
+	$(call print,Assembling:,$<,$@)
+	$(V)python3 tools/mapPacker.py $(BUILD_DIR)/sm64_prelim.elf $(BUILD_DIR)/bin/addr.bin $(BUILD_DIR)/bin/name.bin
+	$(V)$(CROSS)gcc -c $(ASMFLAGS) $(foreach i,$(INCLUDE_DIRS),-Wa,-I$(i)) -x assembler-with-cpp -MMD -MF $(BUILD_DIR)/$*.d  -o $@ $<
 
 # Link SM64 ELF file
-$(ELF): $(O_FILES) $(MIO0_OBJ_FILES) $(SEG_FILES) $(BUILD_DIR)/$(LD_SCRIPT) undefined_syms.txt $(BUILD_DIR)/libultra.a $(BUILD_DIR)/libgoddard.a $(BUILD_DIR)/libgcc.a
+$(ELF): $(BUILD_DIR)/sm64_prelim.elf $(BUILD_DIR)/asm/debug/map.o $(O_FILES) $(YAY0_OBJ_FILES) $(SEG_FILES) $(BUILD_DIR)/$(LD_SCRIPT) $(BUILD_DIR)/libz.a $(BUILD_DIR)/libgoddard.a
 	@$(PRINT) "$(GREEN)Linking ELF file:  $(BLUE)$@ $(NO_COL)\n"
-	$(V)$(LD) -L $(BUILD_DIR) -T undefined_syms.txt -T $(BUILD_DIR)/$(LD_SCRIPT) -Map $(BUILD_DIR)/sm64.$(VERSION).map --no-check-sections $(addprefix -R ,$(SEG_FILES)) -o $@ $(O_FILES) -lultra -lgoddard -lgcc
+	$(V)$(LD) --gc-sections -L $(BUILD_DIR) -T $(BUILD_DIR)/$(LD_SCRIPT) -T goddard.txt -Map $(BUILD_DIR)/sm64.$(VERSION).map --no-check-sections $(addprefix -R ,$(SEG_FILES)) -o $@ $(O_FILES) -L$(LIBS_DIR) -l$(ULTRALIB) -Llib $(LINK_LIBRARIES) -u sprintf -u osMapTLB -Llib/gcclib/$(LIBGCCDIR) -lgcc
 
 # Build ROM
-ifeq ($(VERSION),cn)
-  PAD_TO_GAP_FILL := --pad-to=0x7B0000 --gap-fill=0x00
+ifeq (n,$(findstring n,$(firstword -$(MAKEFLAGS))))
+# run with -n / --dry-run
+$(ROM):
+	@$(PRINT) "$(BLUE)DRY RUNS ARE DISABLED$(NO_COL)\n"
 else
-  PAD_TO_GAP_FILL := --pad-to=0x800000 --gap-fill=0xFF
-endif
-
+# not running with -n / --dry-run
 $(ROM): $(ELF)
 	$(call print,Building ROM:,$<,$@)
-ifeq ($(VERSION),cn) # cn has no checksums
-	$(V)$(OBJCOPY) $(PAD_TO_GAP_FILL) $< $(@) -O binary
-else
-	$(V)$(OBJCOPY) $(PAD_TO_GAP_FILL) $< $(@:.z64=.bin) -O binary
-	$(V)$(N64CKSUM) $(@:.z64=.bin) $@
 endif
+
+ifeq      ($(CONSOLE),n64)
+	$(V)$(OBJCOPY) --pad-to=0x101000 --gap-fill=0xFF $< $@ -O binary
+else ifeq ($(CONSOLE),bb)
+	$(V)$(OBJCOPY) --gap-fill=0x00 $< $@ -O binary
+	$(V)dd if=$@ of=tmp bs=16K conv=sync status=none
+	$(V)mv tmp $@
+endif
+	$(V)$(N64CKSUM) $@
 
 $(BUILD_DIR)/$(TARGET).objdump: $(ELF)
 	$(OBJDUMP) -D $< > $@
 
-
-
-.PHONY: all clean distclean default diff test load libultra
+.PHONY: all clean distclean default test load rebuildtools
 # with no prerequisites, .SECONDARY causes no intermediate target to be removed
 .SECONDARY:
 

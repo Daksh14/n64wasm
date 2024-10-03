@@ -5,15 +5,11 @@
 #define PLASTERED "splattered"
 #define SCAM_ME "cheat!\n"
 #define SCRAM "get lost"
-#define YOU_CANT_SWIM_IN_IT "Its too heavy to swim\nwith."
-#define GIVE_UP "give up"
 #else
 #define COMRADES "comrades"
 #define PLASTERED "plastered"
 #define SCAM_ME "scam\nME. "
 #define SCRAM "scram--"
-#define YOU_CANT_SWIM_IN_IT "You can't swim in it."
-#define GIVE_UP "give"
 #endif
 
 DEFINE_DIALOG(DIALOG_000, 1, 6, 30, 200, _("\
@@ -140,7 +136,7 @@ it, fair and square!"))
 DEFINE_DIALOG(DIALOG_008, 1, 4, 30, 200, _("\
 BEWARE OF CHAIN CHOMP\n\
 Extreme Danger!\n\
-Get close and press [C]▲\n\
+Get close and press [C]^\n\
 for a better look.\n\
 Scary, huh?\n\
 See the Red Coin on top\n\
@@ -352,8 +348,8 @@ order to walk quietly.\n\
 And wrapping up filming\n\
 techniques reported on\n\
 earlier, you can take a\n\
-look around using [C]▶ and\n\
-[C]◀. Press [C]▼ to view the\n\
+look around using [C]> and\n\
+[C]<. Press [C]| to view the\n\
 action from a distance.\n\
 When you can't move the\n\
 camera any farther, the\n\
@@ -424,7 +420,7 @@ If we can't adjust the\n\
 view any further, we'll\n\
 buzz. To take a look at\n\
 the surroundings, stop\n\
-and press [C]▲.\n\
+and press [C]^.\n\
 \n\
 Press [A] to resume play.\n\
 Switch camera modes with\n\
@@ -438,7 +434,7 @@ Lakitu Bros."))
 
 DEFINE_DIALOG(DIALOG_035, 1, 5, 30, 200, _("\
 There are four camera, or\n\
-『[C],』 Buttons. Press [C]▲\n\
+『[C],』 Buttons. Press [C]^\n\
 to look around using the\n\
 Control Stick.\n\
 \n\
@@ -448,19 +444,19 @@ It is the camera\n\
 recommended for normal\n\
 play.\n\
 You can change angles by\n\
-pressing [C]▶. If you press\n\
+pressing [C]>. If you press\n\
 [R], the view switches to\n\
 Mario's camera, which\n\
 is directly behind him.\n\
 Press [R] again to return\n\
 to Lakitu's camera. Press\n\
-[C]▼ to see Mario from\n\
+[C]| to see Mario from\n\
 afar, using either\n\
 Lakitu's or Mario's view."))
 
 DEFINE_DIALOG(DIALOG_036, 1, 5, 30, 200, _("\
 OBSERVATION PLATFORM\n\
-Press [C]▲ to take a look\n\
+Press [C]^ to take a look\n\
 around. Don't miss\n\
 anything!\n\
 \n\
@@ -784,8 +780,9 @@ by enemy attacks.\n\
 You don't even have to\n\
 breathe while wearing it.\n\
 \n\
-The only problem:\n"
-YOU_CANT_SWIM_IN_IT))
+The only problem:\n\
+It is too heavy to\n\
+swim with."))
 
 DEFINE_DIALOG(DIALOG_063, 1, 5, 30, 200, _("\
 The Vanish Cap is inside\n\
@@ -1866,7 +1863,7 @@ Waaaaaaaaaaaaaaaaa!!!"))
 
 DEFINE_DIALOG(DIALOG_152, 1, 3, 30, 200, _("\
 Owwch! Uncle! Uncle!\n\
-Okay, I " GIVE_UP ". Take this\n\
+Okay, I give up. Take this\n\
 Star!\n\
 Whew! I feel better now.\n\
 I don't really need it\n\

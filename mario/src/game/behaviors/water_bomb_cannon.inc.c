@@ -8,21 +8,19 @@ void bhv_bubble_cannon_barrel_loop(void) {
         o->oMoveAnglePitch = o->parentObj->oMoveAnglePitch + 0x4000;
         o->oFaceAnglePitch = o->parentObj->oMoveAnglePitch;
 
-        if ((o->oCannonBarrelBubblesUnkF4 += o->oForwardVel) > 0.0f) {
+        if ((o->oCannonBarrelBubblesForwardVelCheck += o->oForwardVel) > 0.0f) {
             cur_obj_set_pos_via_transform();
             obj_forward_vel_approach(-5.0f, 18.0f);
         } else {
-            o->oCannonBarrelBubblesUnkF4 = 0.0f;
+            o->oCannonBarrelBubblesForwardVelCheck = 0.0f;
             obj_copy_pos(o, o->parentObj);
 
             // check this
-            if (o->parentObj->oWaterCannonUnkF4 != 0) {
+            if (o->parentObj->oWaterCannonIdleTimer != 0) {
                 if (o->oForwardVel == 0.0f) {
-                    struct Object *waterBomb;
-
                     o->oForwardVel = 35.0f;
 
-                    waterBomb = spawn_object(o, MODEL_WATER_BOMB, bhvWaterBomb);
+                    struct Object *waterBomb = spawn_object(o, MODEL_WATER_BOMB, bhvWaterBomb);
                     if (waterBomb != NULL) {
                         waterBomb->oForwardVel = -100.0f;
                         waterBomb->header.gfx.scale[1] = 1.7f;
@@ -43,29 +41,29 @@ void water_bomb_cannon_act_0(void) {
         cur_obj_unhide();
 
         o->oAction = 1;
-        o->oMoveAnglePitch = o->oWaterCannonUnkFC = 0x1C00;
+        o->oMoveAnglePitch = o->oWaterCannonTargetMovePitch = 0x1C00;
     }
 }
 
 void water_bomb_cannon_act_1(void) {
     if (o->oDistanceToMario > 2500.0f) {
         o->oAction = 2;
-    } else if (o->oBhvParams2ndByte == 0) {
-        if (o->oWaterCannonUnkF4 != 0) {
-            o->oWaterCannonUnkF4--;
+    } else if (o->oBehParams2ndByte == 0) {
+        if (o->oWaterCannonIdleTimer != 0) {
+            o->oWaterCannonIdleTimer--;
         } else {
-            obj_move_pitch_approach(o->oWaterCannonUnkFC, 0x80);
-            obj_face_yaw_approach(o->oWaterCannonUnk100, 0x100);
+            obj_move_pitch_approach(o->oWaterCannonTargetMovePitch, 0x80);
+            obj_face_yaw_approach(o->oWaterCannonTargetFaceYaw, 0x100);
 
-            if ((s16) o->oFaceAngleYaw == (s16) o->oWaterCannonUnk100) {
-                if (o->oWaterCannonUnkF8 != 0) {
-                    o->oWaterCannonUnkF8--;
+            if ((s16) o->oFaceAngleYaw == (s16) o->oWaterCannonTargetFaceYaw) {
+                if (o->oWaterCannonRotationTimer != 0) {
+                    o->oWaterCannonRotationTimer--;
                 } else {
-                    cur_obj_play_sound_2(SOUND_OBJ_CANNON4);
-                    o->oWaterCannonUnkF4 = 70;
-                    o->oWaterCannonUnkFC = 0x1000 + 0x400 * (random_u16() & 0x03);
-                    o->oWaterCannonUnk100 = -0x2000 + o->oMoveAngleYaw + 0x1000 * (random_u16() % 5);
-                    o->oWaterCannonUnkF8 = 60;
+                    cur_obj_play_sound_2(SOUND_OBJ_WATER_BOMB_CANNON);
+                    o->oWaterCannonIdleTimer = 70;
+                    o->oWaterCannonTargetMovePitch = 0x1000 + 0x400 * (random_u16() & 0x3);
+                    o->oWaterCannonTargetFaceYaw = -0x2000 + o->oMoveAngleYaw + 0x1000 * (random_u16() % 5);
+                    o->oWaterCannonRotationTimer = 60;
                 }
             }
         }

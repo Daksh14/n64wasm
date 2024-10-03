@@ -1,7 +1,7 @@
 // flame.inc.c
 
-void bhv_small_piranha_flame_loop(void) {
-    if ((u16)(o->oBhvParams >> 16) == 0) {
+void bhv_moving_flame_loop(void) {
+    if (GET_BPARAM2(o->oBehParams) == MOVING_FLAME_BP_1FRAME) {
         if (o->oTimer > 0) {
             obj_mark_for_deletion(o);
         } else {
@@ -21,12 +21,12 @@ void bhv_small_piranha_flame_loop(void) {
 
         obj_compute_vel_from_move_pitch(o->oSmallPiranhaFlameStartSpeed);
         cur_obj_move_standard(-78);
-        spawn_object_with_scale(o, o->oSmallPiranhaFlameModel, bhvSmallPiranhaFlame,
+        spawn_object_with_scale(o, o->oSmallPiranhaFlameModel, bhvMovingFlame,
                                 0.4f * o->header.gfx.scale[0]);
 
         if (o->oTimer > o->oSmallPiranhaFlameNextFlameTimer) {
             spawn_object_relative_with_scale(1, 0, o->oGraphYOffset, 0, o->header.gfx.scale[0], o,
-                                             o->oSmallPiranhaFlameModel, bhvFlyguyFlame);
+                                             o->oSmallPiranhaFlameModel, bhvMovingFlameEmber);
             o->oSmallPiranhaFlameNextFlameTimer = random_linear_offset(8, 15);
             o->oTimer = 0;
         }
@@ -43,7 +43,7 @@ void bhv_small_piranha_flame_loop(void) {
     o->oGraphYOffset = 15.0f * o->header.gfx.scale[1];
 }
 
-void bhv_fly_guy_flame_loop(void) {
+void bhv_moving_flame_particle_loop(void) {
     cur_obj_move_using_fvel_and_gravity();
 
     if (approach_f32_ptr(&o->header.gfx.scale[0], 0.0f, 0.6f)) {

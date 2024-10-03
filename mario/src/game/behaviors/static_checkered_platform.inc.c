@@ -3,9 +3,7 @@
 void bhv_static_checkered_platform_loop(void) {
     if (gDebugInfo[DEBUG_PAGE_ENEMYINFO][0] == 1) {
         obj_set_angle(o, 0, 0, 0);
-        o->oAngleVelPitch = 0;
-        o->oAngleVelYaw = 0;
-        o->oAngleVelRoll = 0;
+        vec3_zero(&o->oAngleVelVec);
     }
 
     if (gDebugInfo[DEBUG_PAGE_ENEMYINFO][0] == 2) {
@@ -19,8 +17,6 @@ void bhv_static_checkered_platform_loop(void) {
     o->oAngleVelRoll = gDebugInfo[DEBUG_PAGE_ENEMYINFO][6];
 
     if (gDebugInfo[DEBUG_PAGE_ENEMYINFO][0] == 3) {
-        o->oFaceAnglePitch += o->oAngleVelPitch;
-        o->oFaceAngleYaw += o->oAngleVelYaw;
-        o->oFaceAngleRoll += o->oAngleVelRoll;
+        vec3_add(&o->oFaceAngleVec, &o->oAngleVelVec);
     }
 }

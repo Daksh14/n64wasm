@@ -26,8 +26,6 @@ static struct ObjectHitbox sBooCageHitbox = {
  * Update function for bhvBooCage.
  */
 void bhv_boo_cage_loop(void) {
-    UNUSED u8 filler[4];
-
     obj_set_hitbox(o, &sBooCageHitbox);
 
     switch (o->oAction) {
@@ -43,7 +41,7 @@ void bhv_boo_cage_loop(void) {
             // give the cage an initial Y velocity of 60 units/frame, and play the puzzle jingle.
             // Otherwise, stay inside the boo.
             if (o->parentObj->oBooDeathStatus != BOO_DEATH_STATUS_ALIVE) {
-                o->oAction++;
+                o->oAction = BOO_CAGE_ACT_FALLING;
                 o->oVelY = 60.0f;
                 play_puzzle_jingle();
             } else {
@@ -67,16 +65,15 @@ void bhv_boo_cage_loop(void) {
 
             // When the cage lands/bounces, play a landing/bouncing sound.
             if (o->oMoveFlags & OBJ_MOVE_LANDED) {
-                cur_obj_play_sound_2(SOUND_GENERAL_SOFT_LANDING);
+                cur_obj_play_sound_2(SOUND_GENERAL_BOO_CAGE_SOFT_LANDING);
             }
 
             // Once the cage stops bouncing and settles on the ground,
             // set the action to BOO_CAGE_ACT_ON_GROUND.
             // This is the only use of the OBJ_MOVE_AT_WATER_SURFACE flag in the game.
             // It seems to serve no purpose here.
-            if (o->oMoveFlags
-                & (OBJ_MOVE_UNDERWATER_ON_GROUND | OBJ_MOVE_AT_WATER_SURFACE | OBJ_MOVE_ON_GROUND)) {
-                o->oAction++;
+            if (o->oMoveFlags & (OBJ_MOVE_UNDERWATER_ON_GROUND | OBJ_MOVE_AT_WATER_SURFACE | OBJ_MOVE_ON_GROUND)) {
+                o->oAction = BOO_CAGE_ACT_ON_GROUND;
             }
 
             break;
@@ -90,7 +87,7 @@ void bhv_boo_cage_loop(void) {
 
             // Set the action to BOO_CAGE_ACT_MARIO_JUMPING_IN when Mario jumps in.
             if (obj_check_if_collided_with_object(o, gMarioObject)) {
-                o->oAction++;
+                o->oAction = BOO_CAGE_ACT_MARIO_JUMPING_IN;
             }
 
             break;
@@ -101,7 +98,7 @@ void bhv_boo_cage_loop(void) {
             // which does nothing. By extension, this action is also useless.
 
             if (o->oTimer > 100) {
-                o->oAction++;
+                o->oAction = BOO_CAGE_ACT_USELESS;
             }
 
             break;

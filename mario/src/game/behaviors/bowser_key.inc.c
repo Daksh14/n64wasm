@@ -34,16 +34,16 @@ void bhv_bowser_key_loop(void) {
         cur_obj_move_standard(78);
 
         if (o->oMoveFlags & OBJ_MOVE_ON_GROUND) {
-            o->oAction++;
+            o->oAction = 1;
         } else if (o->oMoveFlags & OBJ_MOVE_LANDED) {
-            cur_obj_play_sound_2(SOUND_GENERAL_UNKNOWN3);
+            cur_obj_play_sound_2(SOUND_GENERAL_BOWSER_KEY_LAND);
         }
     } else {
         obj_set_hitbox(o, &sBowserKeyHitbox);
 
         if (o->oInteractStatus & INT_STATUS_INTERACTED) {
-            mark_obj_for_deletion(o);
-            o->oInteractStatus = 0;
+            obj_mark_for_deletion(o);
+            o->oInteractStatus = INT_STATUS_NONE;
         }
     }
 }

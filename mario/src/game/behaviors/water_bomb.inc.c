@@ -29,10 +29,8 @@ static struct ObjectHitbox sWaterBombHitbox = {
  * Spawn water bombs targeting mario when he comes in range.
  */
 void bhv_water_bomb_spawner_update(void) {
-    f32 latDistToMario;
-    f32 spawnerRadius = 50 * (u16)(o->oBhvParams >> 16) + 200.0f;
-
-    latDistToMario = lateral_dist_between_objects(o, gMarioObject);
+    f32 spawnerRadius = 50 * GET_BPARAM2(o->oBehParams) + 200.0f;
+    f32 latDistToMario = lateral_dist_between_objects(o, gMarioObject);
 
     // When mario is in range and a water bomb isn't already active
     if (!o->oWaterBombSpawnerBombActive && latDistToMario < spawnerRadius
@@ -63,30 +61,30 @@ void bhv_water_bomb_spawner_update(void) {
     }
 }
 
+static struct SpawnParticlesInfo sWaterBombExplodeParticles = {
+    /* behParam:        */ 0,
+    /* count:           */ 5,
+    /* model:           */ MODEL_BUBBLE,
+    /* offsetY:         */ 20,
+    /* forwardVelBase:  */ 20,
+    /* forwardVelRange: */ 60,
+    /* velYBase:        */ 10,
+    /* velYRange:       */ 10,
+    /* gravity:         */ -2,
+    /* dragStrength:    */ 0,
+    /* sizeBase:        */ 35.0f,
+    /* sizeRange:       */ 10.0f,
+};
+
 /**
  * Spawn particles when the water bomb explodes.
  */
 void water_bomb_spawn_explode_particles(s8 offsetY, s8 forwardVelRange, s8 velYBase) {
-    static struct SpawnParticlesInfo waterBombExplodeParticles = {
-        /* bhvParam:        */ 0,
-        /* count:           */ 5,
-        /* model:           */ MODEL_BUBBLE,
-        /* offsetY:         */ 20,
-        /* forwardVelBase:  */ 20,
-        /* forwardVelRange: */ 60,
-        /* velYBase:        */ 10,
-        /* velYRange:       */ 10,
-        /* gravity:         */ -2,
-        /* dragStrength:    */ 0,
-        /* sizeBase:        */ 35.0f,
-        /* sizeRange:       */ 10.0f,
-    };
+    sWaterBombExplodeParticles.offsetY = offsetY;
+    sWaterBombExplodeParticles.forwardVelRange = forwardVelRange;
+    sWaterBombExplodeParticles.velYBase = velYBase;
 
-    waterBombExplodeParticles.offsetY = offsetY;
-    waterBombExplodeParticles.forwardVelRange = forwardVelRange;
-    waterBombExplodeParticles.velYBase = velYBase;
-
-    cur_obj_spawn_particles(&waterBombExplodeParticles);
+    cur_obj_spawn_particles(&sWaterBombExplodeParticles);
 }
 
 /**
@@ -96,7 +94,7 @@ static void water_bomb_act_init(void) {
     cur_obj_play_sound_2(SOUND_OBJ_SOMETHING_LANDING);
 
     o->oAction = WATER_BOMB_ACT_DROP;
-    o->oMoveFlags = 0;
+    o->oMoveFlags = OBJ_MOVE_NONE;
     o->oVelY = -40.0f;
 }
 
@@ -171,25 +169,25 @@ static void water_bomb_act_explode(void) {
     obj_mark_for_deletion(o);
 }
 
+static struct SpawnParticlesInfo sWaterBombCannonParticle = {
+    /* behParam:        */ 0,
+    /* count:           */ 1,
+    /* model:           */ MODEL_BUBBLE,
+    /* offsetY:         */ 236,
+    /* forwardVelBase:  */ 20,
+    /* forwardVelRange: */ 5,
+    /* velYBase:        */ 0,
+    /* velYRange:       */ 0,
+    /* gravity:         */ -2,
+    /* dragStrength:    */ 0,
+    /* sizeBase:        */ 20.0f,
+    /* sizeRange:       */ 5.0f,
+};
+
 /**
  * Despawn after 100 frames.
  */
 static void water_bomb_act_shot_from_cannon(void) {
-    static struct SpawnParticlesInfo waterBombCannonParticle = {
-        /* bhvParam:        */ 0,
-        /* count:           */ 1,
-        /* model:           */ MODEL_BUBBLE,
-        /* offsetY:         */ 236,
-        /* forwardVelBase:  */ 20,
-        /* forwardVelRange: */ 5,
-        /* velYBase:        */ 0,
-        /* velYRange:       */ 0,
-        /* gravity:         */ -2,
-        /* dragStrength:    */ 0,
-        /* sizeBase:        */ 20.0f,
-        /* sizeRange:       */ 5.0f,
-    };
-
     if (o->oTimer > 100) {
         obj_mark_for_deletion(o);
     } else {
@@ -197,7 +195,7 @@ static void water_bomb_act_shot_from_cannon(void) {
             if (o->oTimer == 1) {
                 water_bomb_spawn_explode_particles(-20, 10, 30);
             }
-            cur_obj_spawn_particles(&waterBombCannonParticle);
+            cur_obj_spawn_particles(&sWaterBombCannonParticle);
         }
 
         if (o->header.gfx.scale[1] > 1.2f) {

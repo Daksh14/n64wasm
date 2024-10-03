@@ -3,15 +3,13 @@
 #include "effects.h"
 #include "load.h"
 #include "data.h"
+#include "external.h"
 #include "seqplayer.h"
+#include "game/game_init.h"
+#include "game/main.h"
+#include "engine/math_util.h"
 
-#ifdef VERSION_JP
-#define US_FLOAT2(x) x##.0
-#else
-#define US_FLOAT2(x) x
-#endif
-
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
 void sequence_channel_process_sound(struct SequenceChannel *seqChannel, s32 recalculateVolume) {
     f32 channelVolume;
     s32 i;
@@ -21,7 +19,7 @@ void sequence_channel_process_sound(struct SequenceChannel *seqChannel, s32 reca
         if (seqChannel->seqPlayer->muted && (seqChannel->muteBehavior & MUTE_BEHAVIOR_SOFTEN) != 0) {
             channelVolume = seqChannel->seqPlayer->muteVolumeScale * channelVolume;
         }
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
         seqChannel->appliedVolume = channelVolume * channelVolume;
 #else
         seqChannel->appliedVolume = channelVolume;
@@ -32,7 +30,7 @@ void sequence_channel_process_sound(struct SequenceChannel *seqChannel, s32 reca
         seqChannel->pan = seqChannel->newPan * seqChannel->panChannelWeight;
     }
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < 4; ++i) {
         struct SequenceChannelLayer *layer = seqChannel->layers[i];
         if (layer != NULL && layer->enabled && layer->note != NULL) {
             if (layer->notePropertiesNeedInit) {
@@ -57,22 +55,26 @@ void sequence_channel_process_sound(struct SequenceChannel *seqChannel, s32 reca
 }
 #else
 static void sequence_channel_process_sound(struct SequenceChannel *seqChannel) {
+    s32 hasProcessedChannel = FALSE;
     f32 channelVolume;
-    f32 panLayerWeight;
     f32 panFromChannel;
-    s32 i;
+    f32 panLayerWeight;
 
-    channelVolume = seqChannel->volume * seqChannel->volumeScale * seqChannel->seqPlayer->fadeVolume;
-    if (seqChannel->seqPlayer->muted && (seqChannel->muteBehavior & MUTE_BEHAVIOR_SOFTEN) != 0) {
-        channelVolume *= seqChannel->seqPlayer->muteVolumeScale;
-    }
-
-    panFromChannel = seqChannel->pan * seqChannel->panChannelWeight;
-    panLayerWeight = US_FLOAT(1.0) - seqChannel->panChannelWeight;
-
-    for (i = 0; i < 4; i++) {
+    for (s32 i = 0; i < LAYERS_MAX; i++) {
         struct SequenceChannelLayer *layer = seqChannel->layers[i];
         if (layer != NULL && layer->enabled && layer->note != NULL) {
+            if (!hasProcessedChannel) {
+                hasProcessedChannel = TRUE;
+
+                channelVolume = seqChannel->volume * seqChannel->volumeScale * seqChannel->seqPlayer->fadeVolume;
+                if (seqChannel->seqPlayer->muted && (seqChannel->muteBehavior & MUTE_BEHAVIOR_SOFTEN) != 0) {
+                    channelVolume *= seqChannel->seqPlayer->muteVolumeScale;
+                }
+
+                panFromChannel = seqChannel->pan * seqChannel->panChannelWeight;
+                panLayerWeight = 1.0f - seqChannel->panChannelWeight;
+            }
+
             layer->noteFreqScale = layer->freqScale * seqChannel->freqScale;
             layer->noteVelocity = layer->velocitySquare * channelVolume;
             layer->notePan = (layer->pan * panLayerWeight) + panFromChannel;
@@ -86,19 +88,13 @@ void sequence_player_process_sound(struct SequencePlayer *seqPlayer) {
 
     if (seqPlayer->fadeRemainingFrames != 0) {
         seqPlayer->fadeVolume += seqPlayer->fadeVelocity;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
         seqPlayer->recalculateVolume = TRUE;
 #endif
-
-        if (seqPlayer->fadeVolume > US_FLOAT2(1)) {
-            seqPlayer->fadeVolume = US_FLOAT2(1);
-        }
-        if (seqPlayer->fadeVolume < 0) {
-            seqPlayer->fadeVolume = 0;
-        }
+        seqPlayer->fadeVolume = CLAMP(seqPlayer->fadeVolume, 0, 1);
 
         if (--seqPlayer->fadeRemainingFrames == 0) {
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
             if (seqPlayer->state == 2) {
                 sequence_player_disable(seqPlayer);
                 return;
@@ -121,7 +117,7 @@ void sequence_player_process_sound(struct SequencePlayer *seqPlayer) {
         }
     }
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     if (seqPlayer->recalculateVolume) {
         seqPlayer->appliedFadeVolume = seqPlayer->fadeVolume * seqPlayer->fadeVolumeScale;
     }
@@ -131,7 +127,7 @@ void sequence_player_process_sound(struct SequencePlayer *seqPlayer) {
     for (i = 0; i < CHANNELS_MAX; i++) {
         if (IS_SEQUENCE_CHANNEL_VALID(seqPlayer->channels[i]) == TRUE
             && seqPlayer->channels[i]->enabled == TRUE) {
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
             sequence_channel_process_sound(seqPlayer->channels[i], seqPlayer->recalculateVolume);
 #else
             sequence_channel_process_sound(seqPlayer->channels[i]);
@@ -139,14 +135,12 @@ void sequence_player_process_sound(struct SequencePlayer *seqPlayer) {
         }
     }
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     seqPlayer->recalculateVolume = FALSE;
 #endif
 }
 
 f32 get_portamento_freq_scale(struct Portamento *p) {
-    u32 v0;
-    f32 result;
 #if defined(VERSION_JP) || defined(VERSION_US)
     if (p->mode == 0) {
         return 1.0f;
@@ -154,42 +148,30 @@ f32 get_portamento_freq_scale(struct Portamento *p) {
 #endif
 
     p->cur += p->speed;
-    v0 = (u32) p->cur;
+    u32 v0 = (u32) p->cur;
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
-    if (v0 > 127)
-#else
-    if (v0 >= 127)
-#endif
-    {
+    if (v0 > 127) {
         v0 = 127;
     }
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
-    result = US_FLOAT(1.0) + p->extent * (gPitchBendFrequencyScale[v0 + 128] - US_FLOAT(1.0));
-#else
-    result = US_FLOAT(1.0) + p->extent * (gPitchBendFrequencyScale[v0 + 127] - US_FLOAT(1.0));
-#endif
-    return result;
+    return (1.0f + (p->extent * (gPitchBendFrequencyScale[v0 + 128] - 1.0f)));
 }
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
-s16 get_vibrato_pitch_change(struct VibratoState *vib) {
-    s32 index;
+s32 get_vibrato_pitch_change(struct VibratoState *vib) {
+#if defined(VERSION_EU) || defined(VERSION_SH)
     vib->time += (s32) vib->rate;
-    index = (vib->time >> 10) & 0x3F;
+    s32 index = (vib->time >> 10) & 0x3F;
     return vib->curve[index] >> 8;
 }
 #else
-s8 get_vibrato_pitch_change(struct VibratoState *vib) {
-    s32 index;
     vib->time += vib->rate;
 
-    index = (vib->time >> 10) & 0x3F;
+    s32 index = (vib->time >> 10) & 0x3F;
 
     switch (index & 0x30) {
         case 0x10:
             index = 31 - index;
+            // fallthrough
 
         case 0x00:
             return vib->curve[index];
@@ -208,27 +190,33 @@ s8 get_vibrato_pitch_change(struct VibratoState *vib) {
 #endif
 
 f32 get_vibrato_freq_scale(struct VibratoState *vib) {
-    s32 pitchChange;
-    f32 extent;
-    f32 result;
+    s32 vibratoExtentTarget;
 
     if (vib->delay != 0) {
         vib->delay--;
         return 1;
     }
 
+    // This needs to be set locally because changing the original value to 0 overrides the whole channel,
+    // effectively negating the ability to disable vibrato and bypass this function in the first place.
+    // This function isn't huge but it otherwise would get called many thousands of times per second.
+    vibratoExtentTarget = vib->seqChannel->vibratoExtentTarget;
+    if (vibratoExtentTarget >= VIBRATO_DISABLED_VALUE) {
+        vibratoExtentTarget = 0;
+    }
+
     if (vib->extentChangeTimer) {
         if (vib->extentChangeTimer == 1) {
-            vib->extent = (s32) vib->seqChannel->vibratoExtentTarget;
+            vib->extent = vibratoExtentTarget;
         } else {
             vib->extent +=
-                ((s32) vib->seqChannel->vibratoExtentTarget - vib->extent) / (s32) vib->extentChangeTimer;
+                (vibratoExtentTarget - vib->extent) / (s32) vib->extentChangeTimer;
         }
 
         vib->extentChangeTimer--;
-    } else if (vib->seqChannel->vibratoExtentTarget != (s32) vib->extent) {
+    } else if (vibratoExtentTarget != (s32) vib->extent) {
         if ((vib->extentChangeTimer = vib->seqChannel->vibratoExtentChangeDelay) == 0) {
-            vib->extent = (s32) vib->seqChannel->vibratoExtentTarget;
+            vib->extent = vibratoExtentTarget;
         }
     }
 
@@ -250,19 +238,14 @@ f32 get_vibrato_freq_scale(struct VibratoState *vib) {
         return 1.0f;
     }
 
-    pitchChange = get_vibrato_pitch_change(vib);
-    extent = (f32) vib->extent / US_FLOAT(4096.0);
+    s32 pitchChange = get_vibrato_pitch_change(vib);
+    f32 extent = (f32) vib->extent / 4096.0f;
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
-    result = US_FLOAT(1.0) + extent * (gPitchBendFrequencyScale[pitchChange + 128] - US_FLOAT(1.0));
-#else
-    result = US_FLOAT(1.0) + extent * (gPitchBendFrequencyScale[pitchChange + 127] - US_FLOAT(1.0));
-#endif
-    return result;
+    return 1.0f + extent * (gPitchBendFrequencyScale[pitchChange + 128] - 1.0f);
 }
 
 void note_vibrato_update(struct Note *note) {
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     if (note->portamento.mode != 0) {
         note->portamentoFreqScale = get_portamento_freq_scale(&note->portamento);
     }
@@ -270,40 +253,45 @@ void note_vibrato_update(struct Note *note) {
         note->vibratoFreqScale = get_vibrato_freq_scale(&note->vibratoState);
     }
 #else
-    if (note->vibratoState.active) {
+    if (note->vibratoState.activeFlags & VIBMODE_PORTAMENTO) {
         note->portamentoFreqScale = get_portamento_freq_scale(&note->portamento);
-        if (note->parentLayer != NO_LAYER) {
-            note->vibratoFreqScale = get_vibrato_freq_scale(&note->vibratoState);
-        }
+    }
+    if ((note->vibratoState.activeFlags & VIBMODE_VIBRATO) && note->parentLayer != NO_LAYER) {
+        note->vibratoFreqScale = get_vibrato_freq_scale(&note->vibratoState);
     }
 #endif
 }
 
 void note_vibrato_init(struct Note *note) {
-    struct VibratoState *vib;
-    UNUSED struct SequenceChannel *seqChannel;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     struct NotePlaybackState *seqPlayerState = (struct NotePlaybackState *) &note->priority;
 #endif
 
     note->vibratoFreqScale = 1.0f;
     note->portamentoFreqScale = 1.0f;
 
-    vib = &note->vibratoState;
+    struct VibratoState *vib = &note->vibratoState;
 
 #if defined(VERSION_JP) || defined(VERSION_US)
-    if (note->parentLayer->seqChannel->vibratoExtentStart == 0
-        && note->parentLayer->seqChannel->vibratoExtentTarget == 0
-        && note->parentLayer->portamento.mode == 0) {
-        vib->active = FALSE;
+    vib->activeFlags = VIBMODE_NONE;
+    if (note->parentLayer->portamento.mode != 0) {
+        vib->activeFlags |= VIBMODE_PORTAMENTO;
+        note->portamento = note->parentLayer->portamento;
+    }
+
+    if (!(note->parentLayer->seqChannel->vibratoExtentStart == 0
+        && note->parentLayer->seqChannel->vibratoExtentTarget >= VIBRATO_DISABLED_VALUE)) {
+        vib->activeFlags |= VIBMODE_VIBRATO;
+    } else {
         return;
     }
+#else
+    vib->active = TRUE;
 #endif
 
-    vib->active = TRUE;
     vib->time = 0;
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     vib->curve = gWaveSamples[2];
     vib->seqChannel = note->parentLayer->seqChannel;
     if ((vib->extentChangeTimer = vib->seqChannel->vibratoExtentChangeDelay) == 0) {
@@ -323,7 +311,7 @@ void note_vibrato_init(struct Note *note) {
 #else
     vib->curve = gVibratoCurve;
     vib->seqChannel = note->parentLayer->seqChannel;
-    seqChannel = vib->seqChannel;
+    struct SequenceChannel *seqChannel = vib->seqChannel;
 
     if ((vib->extentChangeTimer = seqChannel->vibratoExtentChangeDelay) == 0) {
         vib->extent = seqChannel->vibratoExtentTarget;
@@ -337,18 +325,16 @@ void note_vibrato_init(struct Note *note) {
         vib->rate = seqChannel->vibratoRateStart;
     }
     vib->delay = seqChannel->vibratoDelay;
-
-    note->portamento = note->parentLayer->portamento;
 #endif
 }
 
 void adsr_init(struct AdsrState *adsr, struct AdsrEnvelope *envelope, UNUSED s16 *volOut) {
     adsr->action = 0;
     adsr->state = ADSR_STATE_DISABLED;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     adsr->delay = 0;
     adsr->envelope = envelope;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     adsr->sustain = 0.0f;
 #endif
     adsr->current = 0.0f;
@@ -361,22 +347,24 @@ void adsr_init(struct AdsrState *adsr, struct AdsrEnvelope *envelope, UNUSED s16
 #endif
 }
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
 f32 adsr_update(struct AdsrState *adsr) {
 #else
-s32 adsr_update(struct AdsrState *adsr) {
+s32 adsr_update(struct Note *note) {
+    struct AdsrState *adsr = &note->adsr;
+    u8 isInit = FALSE;
 #endif
     u8 action = adsr->action;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
     u8 state = adsr->state;
     switch (state) {
-#else
-    switch (adsr->state) {
-#endif
         case ADSR_STATE_DISABLED:
             return 0;
 
-        case ADSR_STATE_INITIAL: {
+        case ADSR_STATE_INITIAL:
+            isInit = TRUE;
+            // fallthrough
+
+        case ADSR_STATE_RESTART:
 #if defined(VERSION_JP) || defined(VERSION_US)
             adsr->current = adsr->initial;
             adsr->target = adsr->initial;
@@ -386,19 +374,19 @@ s32 adsr_update(struct AdsrState *adsr) {
                 break;
             }
             // fallthrough
-        }
 
         case ADSR_STATE_START_LOOP:
             adsr->envIndex = 0;
 #if defined(VERSION_JP) || defined(VERSION_US)
-            adsr->currentHiRes = adsr->current << 0x10;
+            adsr->currentHiRes = (adsr->current << 0x10);
 #endif
             adsr->state = ADSR_STATE_LOOP;
+#ifdef VERSION_SH
             // fallthrough
-
-#if defined(VERSION_SH) || defined(VERSION_CN)
             restart:
 #endif
+            // fallthrough
+
         case ADSR_STATE_LOOP:
             adsr->delay = BSWAP16(adsr->envelope[adsr->envIndex].delay);
             switch (adsr->delay) {
@@ -410,38 +398,41 @@ s32 adsr_update(struct AdsrState *adsr) {
                     break;
                 case ADSR_GOTO:
                     adsr->envIndex = BSWAP16(adsr->envelope[adsr->envIndex].arg);
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
                     goto restart;
 #else
                     break;
 #endif
                 case ADSR_RESTART:
-                    adsr->state = ADSR_STATE_INITIAL;
+                    adsr->state = ADSR_STATE_RESTART;
                     break;
 
                 default:
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
                     if (adsr->delay >= 4) {
                         adsr->delay = adsr->delay * gAudioBufferParameters.updatesPerFrame
-#if defined(VERSION_SH) || defined(VERSION_CN)
+ #ifdef VERSION_SH
                         / gAudioBufferParameters.presetUnk4
-#endif
+ #endif
                         / 4;
                     }
-#if defined(VERSION_SH) || defined(VERSION_CN)
+ #ifdef VERSION_SH
                     if (adsr->delay == 0) {
                         adsr->delay = 1;
                     }
+ #endif
                     adsr->target = (f32) BSWAP16(adsr->envelope[adsr->envIndex].arg) / 32767.0f;
-#elif defined(VERSION_EU)
-                    adsr->target = (f32) BSWAP16(adsr->envelope[adsr->envIndex].arg) / 32767.0;
-#endif
                     adsr->target = adsr->target * adsr->target;
                     adsr->velocity = (adsr->target - adsr->current) / adsr->delay;
-#else
+#else // !(VERSION_EU || VERSION_SH)
+                    if (adsr->delay <= 0) {
+                        adsr->delay = 1;
+                        note->initFullVelocity = isInit;
+                    }
+
                     adsr->target = BSWAP16(adsr->envelope[adsr->envIndex].arg);
                     adsr->velocity = ((adsr->target - adsr->current) << 0x10) / adsr->delay;
-#endif
+#endif // !(VERSION_EU || VERSION_SH)
                     adsr->state = ADSR_STATE_FADE;
                     adsr->envIndex++;
                     break;
@@ -452,7 +443,7 @@ s32 adsr_update(struct AdsrState *adsr) {
             // fallthrough
 
         case ADSR_STATE_FADE:
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
             adsr->current += adsr->velocity;
 #else
             adsr->currentHiRes += adsr->velocity;
@@ -469,14 +460,14 @@ s32 adsr_update(struct AdsrState *adsr) {
         case ADSR_STATE_DECAY:
         case ADSR_STATE_RELEASE: {
             adsr->current -= adsr->fadeOutVel;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
             if (adsr->sustain != 0.0f && state == ADSR_STATE_DECAY) {
 #else
             if (adsr->sustain != 0 && adsr->state == ADSR_STATE_DECAY) {
 #endif
                 if (adsr->current < adsr->sustain) {
                     adsr->current = adsr->sustain;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
                     adsr->delay = 128;
 #else
                     adsr->delay = adsr->sustain / 16;
@@ -486,7 +477,7 @@ s32 adsr_update(struct AdsrState *adsr) {
                 break;
             }
 
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_SH)
             if (adsr->current < 0.00001f) {
                 adsr->current = 0.0f;
                 adsr->state = ADSR_STATE_DISABLED;
@@ -520,14 +511,14 @@ s32 adsr_update(struct AdsrState *adsr) {
 
     if ((action & ADSR_ACTION_RELEASE)) {
         adsr->state = ADSR_STATE_RELEASE;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
         adsr->action = action & ~ADSR_ACTION_RELEASE;
 #else
         adsr->action = action & ~(ADSR_ACTION_RELEASE | ADSR_ACTION_DECAY);
 #endif
     }
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     if (adsr->current < 0.0f) {
         return 0.0f;
     }

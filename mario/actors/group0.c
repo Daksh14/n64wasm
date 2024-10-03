@@ -14,7 +14,7 @@
 
 #include "burn_smoke/model.inc.c"
 
-#include "stomp_smoke/model.inc.c"
+#include "small_water_splash/model.inc.c"
 
 #include "water_wave/model.inc.c"
 
@@ -25,3 +25,8 @@
 #include "white_particle_small/model.inc.c"
 
 #include "sparkle_animation/model.inc.c"
+
+#ifdef S2DEX_TEXT_ENGINE
+#include "src/s2d_engine/s2d_config.h"
+#include FONT_C_FILE
+#endif

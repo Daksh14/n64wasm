@@ -4,11 +4,9 @@
  * Main loop of the hour and minute hands of the Tick Tock Clock painting.
  */
 void bhv_rotating_clock_arm_loop(void) {
-    struct Surface *marioSurface;
+    struct Surface *marioSurface = gMarioState->floor;
     u16 rollAngle = o->oFaceAngleRoll;
-
-    o->oFloorHeight =
-        find_floor(gMarioObject->oPosX, gMarioObject->oPosY, gMarioObject->oPosZ, &marioSurface);
+    o->oFloorHeight = gMarioState->floorHeight;
 
     // Seems to make sure Mario is on a default surface & 4 frames pass before
     //   allowing him to change the Tick Tock Clock speed setting.
@@ -44,7 +42,6 @@ void bhv_rotating_clock_arm_loop(void) {
 
             // Increment the action to stop animating the hands.
             o->oAction++;
-        } else {
         }
     }
 

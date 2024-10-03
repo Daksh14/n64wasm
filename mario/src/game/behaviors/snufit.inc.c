@@ -31,18 +31,16 @@ struct ObjectHitbox sSnufitBulletHitbox = {
 };
 
 /**
- * This geo function shifts snufit's mask when it shrinks down,
+ * This geo function shifts snufit's mask when it shrinks down, 
  * since the parts move independently.
  */
-Gfx *geo_snufit_move_mask(s32 callContext, struct GraphNode *node, UNUSED Mat4 *c) {
+Gfx *geo_snufit_move_mask(s32 callContext, struct GraphNode *node, UNUSED Mat4 *mtx) {
     if (callContext == GEO_CONTEXT_RENDER) {
         struct Object *obj = (struct Object *) gCurGraphNodeObject;
-        struct GraphNodeTranslationRotation *transNode
-            = (struct GraphNodeTranslationRotation *) node->next;
-
-        transNode->translation[0] = obj->oSnufitXOffset;
-        transNode->translation[1] = obj->oSnufitYOffset;
-        transNode->translation[2] = obj->oSnufitZOffset;
+        struct GraphNodeTranslationRotation *transNode = (struct GraphNodeTranslationRotation *) node->next;
+        transNode->translation[0] = 0;
+        transNode->translation[1] = -32;
+        transNode->translation[2] = obj->oSnufitRecoil + 180;
     }
 
     return NULL;
@@ -51,7 +49,7 @@ Gfx *geo_snufit_move_mask(s32 callContext, struct GraphNode *node, UNUSED Mat4 *
 /**
  * This function scales the body of snufit, which needs done seperately from its mask.
  */
-Gfx *geo_snufit_scale_body(s32 callContext, struct GraphNode *node, UNUSED Mat4 *c) {
+Gfx *geo_snufit_scale_body(s32 callContext, struct GraphNode *node, UNUSED Mat4 *mtx) {
     if (callContext == GEO_CONTEXT_RENDER) {
         struct Object *obj = (struct Object *) gCurGraphNodeObject;
         struct GraphNodeScale *scaleNode = (struct GraphNodeScale *) node->next;
@@ -151,8 +149,6 @@ void bhv_snufit_loop(void) {
         o->oPosY = o->oHomeY + 8.0f * coss(4000 * gGlobalTimer);
         o->oPosZ = o->oHomeZ + 100.0f * sins(o->oSnufitCircularPeriod);
 
-        o->oSnufitYOffset = -0x20;
-        o->oSnufitZOffset = o->oSnufitRecoil + 180;
         o->oSnufitBodyScale
             = (s16)(o->oSnufitBodyBaseScale + 666
             + o->oSnufitBodyBaseScale * coss(o->oSnufitBodyScalePeriod));
@@ -184,7 +180,7 @@ void bhv_snufit_balls_loop(void) {
         cur_obj_update_floor_and_walls();
 
         obj_compute_vel_from_move_pitch(40.0f);
-        if (obj_check_attacks(&sSnufitBulletHitbox, 1) != 0) {
+        if (obj_check_attacks(&sSnufitBulletHitbox, 1)) {
             // We hit Mario while he is metal!
             // Bounce off, and fall until the first check is true.
             o->oMoveAngleYaw += 0x8000;
@@ -193,7 +189,7 @@ void bhv_snufit_balls_loop(void) {
             o->oGravity = -4.0f;
 
             cur_obj_become_intangible();
-        } else if (o->oAction == 1
+        } else if (o->oAction == 1 
                    || (o->oMoveFlags & (OBJ_MOVE_MASK_ON_GROUND | OBJ_MOVE_HIT_WALL))) {
             // The Snufit shot Mario and has fulfilled its lonely existance.
             //! The above check could theoretically be avoided by finding a geometric
