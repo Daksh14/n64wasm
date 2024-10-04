@@ -35,7 +35,7 @@ struct WaterDropletParams sWaterDropletFishParams = {
 
 // Water droplets from Mario running in shallow water.
 struct WaterDropletParams gShallowWaterWaveDropletParams = {
-    /* Flags */ WATER_DROPLET_FLAG_RAND_ANGLE_INCR_PLUS_8000 | WATER_DROPLET_FLAG_RAND_ANGLE | WATER_DROPLET_FLAG_SET_Y_TO_WATER_LEVEL,
+    /* Flags */ WATER_DROPLET_FLAG_RAND_ANGLE_INCR_BACKWARD | WATER_DROPLET_FLAG_RAND_ANGLE | WATER_DROPLET_FLAG_SET_Y_TO_WATER_LEVEL,
     /* Model */ MODEL_WHITE_PARTICLE_SMALL,
     /* Behavior */ bhvWaterDroplet,
     /* Move angle range */ 0x6000,
@@ -60,7 +60,6 @@ void bhv_water_splash_spawn_droplets(void) {
 }
 
 void bhv_water_droplet_loop(void) {
-    UNUSED u8 filler[4];
     f32 waterLevel = find_water_level(o->oPosX, o->oPosZ);
 
     if (o->oTimer == 0) {
@@ -99,7 +98,7 @@ void bhv_idle_water_wave_loop(void) {
 }
 
 void bhv_water_droplet_splash_init(void) {
-    cur_obj_scale(random_float() + 1.5);
+    cur_obj_scale(random_float() + 1.5f);
 }
 
 void bhv_bubble_splash_init(void) {
@@ -117,19 +116,19 @@ void bhv_shallow_water_splash_init(void) {
 }
 
 void bhv_wave_trail_shrink(void) {
-    f32 waterLevel = find_water_level(o->oPosX, o->oPosZ);
-    // Destroy every other water wave to space them out (this is a terrible way of doing it)
+    //! Destroy every other water wave to space them out (this is a terrible way of doing it)
     if ((o->oTimer == 0) && (gGlobalTimer & 1)) {
         obj_mark_for_deletion(o);
+        return;
     }
-    o->oPosY = waterLevel + 5.0f;
+    o->oPosY = find_water_level(o->oPosX, o->oPosZ) + 5.0f;
 
     if (o->oTimer == 0) {
         o->oWaveTrailSize = o->header.gfx.scale[0];
     }
 
     if (o->oAnimState > 3) {
-        o->oWaveTrailSize = o->oWaveTrailSize - 0.1; // Shrink the wave
+        o->oWaveTrailSize = o->oWaveTrailSize - 0.1f; // Shrink the wave
         if (o->oWaveTrailSize < 0.0f) {
             o->oWaveTrailSize = 0.0f;
         }

@@ -10,8 +10,9 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "sm64tools/n64graphics.h"
-#include "sm64tools/utils.h"
+#include "n64graphics.h"
+#include "utils.h"
+#include "config.h"
 
 #define SKYCONV_ENCODING ENCODING_U8
 
@@ -26,7 +27,6 @@ typedef enum {
     Skybox,
     Cake,
     CakeEU,
-    CakeCN,
     ImageType_MAX
 } ImageType;
 
@@ -46,20 +46,16 @@ typedef struct {
 
 static const ImageProps IMAGE_PROPERTIES[ImageType_MAX][2] = {
     [Skybox] = {
-        {248, 248, 31, 31, 8, 8, true, true},
-        {256, 256, 32, 32, 8, 8, true, true},
+        {(248 * SKYBOX_SIZE), (248 * SKYBOX_SIZE), 31, 31, (8 * SKYBOX_SIZE), (8 * SKYBOX_SIZE), true, true},
+        {(256 * SKYBOX_SIZE), (256 * SKYBOX_SIZE), 32, 32, (8 * SKYBOX_SIZE), (8 * SKYBOX_SIZE), true, true},
     },
     [Cake] = {
-        {316, 228, 79, 19, 4, 12, false, false},
-        {320, 240, 80, 20, 4, 12, false, false},
+        {316, 228, 63, 29, 5, 8, false, false},
+        {320, 240, 64, 30, 5, 8, false, false},
     },
     [CakeEU] = {
         {320, 224, 64, 32, 5, 7, false, false},
         {320, 224, 64, 32, 5, 7, false, false},
-    },
-    [CakeCN] = {
-        {316, 228, 79, 19, 4, 12, false, false},
-        {320, 240, 80, 20, 4, 12, false, false},
     },
 };
 
@@ -68,10 +64,9 @@ typedef struct {
 } TableDimension;
 
 static const TableDimension TABLE_DIMENSIONS[ImageType_MAX] = {
-    [Skybox]   = {8, 10},
-    [Cake]     = {4, 12},
+    [Skybox]   = {(8 * SKYBOX_SIZE), (10 * SKYBOX_SIZE)},
+    [Cake]     = {5,  8},
     [CakeEU]   = {5,  7},
-    [CakeCN]   = {4, 12},
 };
 
 TextureTile *tiles;
@@ -112,15 +107,29 @@ static void split_tile(int col, int row, rgba *image, bool expanded) {
     int tileWidth = props.tileWidth;
     int tileHeight = props.tileHeight;
     int imageWidth = props.imageWidth;
+    int imageHeight = props.imageHeight;
     int numCols = props.numCols;
 
     int expandedWidth = IMAGE_PROPERTIES[type][true].tileWidth;
+
+    rgba black = {0, 0, 0, 0};
 
     for (int y = 0; y < tileHeight; y++) {
         for (int x = 0; x < tileWidth; x++) {
             int ny = row * tileHeight + y;
             int nx = col * tileWidth + x;
-            tiles[row * numCols + col].px[y * expandedWidth + x] = image[(ny * imageWidth + nx)];
+            if(type == CakeEU) {
+                tiles[row * numCols + col].px[y * expandedWidth + x] = image[(ny * imageWidth + nx)];
+            } else {
+                if (nx < imageWidth && ny < imageHeight)
+                {
+                    tiles[row * numCols + col].px[y * expandedWidth + x] = image[(ny * imageWidth + nx)];
+                }
+                else
+                {
+                    tiles[row * numCols + col].px[y * expandedWidth + x] = black;
+                }
+            }
         }
     }
 }
@@ -248,9 +257,6 @@ void write_tiles() {
         case CakeEU:
             strcat(buffer, "cake_eu");
         break;
-        case CakeCN:
-            strcat(buffer, "cake_cn");
-        break;
         default:
             exit(EXIT_FAILURE);
         break;
@@ -316,9 +322,9 @@ static void write_skybox_c() { /* write c data to disc */
 
     fprintf(cFile, "const Texture *const %s_skybox_ptrlist[] = {\n", skyboxName);
 
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 10; col++) {
-            fprintf(cFile, "%s_skybox_texture_%05X,\n", skyboxName, get_index(tiles, row * 8 + (col % 8)));
+    for (int row = 0; row < (8 * SKYBOX_SIZE); row++) {
+        for (int col = 0; col < (10 * SKYBOX_SIZE); col++) {
+            fprintf(cFile, "%s_skybox_texture_%05X,\n", skyboxName, get_index(tiles, row * (8 * SKYBOX_SIZE) + (col % (8 * SKYBOX_SIZE))));
         }
     }
 
@@ -333,10 +339,7 @@ static void write_cake_c() {
         exit(EXIT_FAILURE);
     }
 
-    if (type == CakeCN) {
-        strcat(buffer, "/cake_cn.inc.c");
-    }
-    else if (type == CakeEU) {
+    if (type == CakeEU) {
         strcat(buffer, "/cake_eu.inc.c");
     }
     else {
@@ -345,17 +348,24 @@ static void write_cake_c() {
 
     FILE *cFile = fopen(buffer, "w");
 
-    const char *euSuffx = "";
-    if (type == CakeEU) {
-        euSuffx = "eu_";
-    }
-
     int numTiles = TABLE_DIMENSIONS[type].cols * TABLE_DIMENSIONS[type].rows;
-    for (int i = 0; i < numTiles; ++i) {
-        fprintf(cFile, "ALIGNED8 static const Texture cake_end_texture_%s%d[] = {\n", euSuffx, i);
-        print_raw_data(cFile, &tiles[i]);
+
+    if (type == CakeEU) {
+        for (int i = 0; i < numTiles; ++i) {
+            fprintf(cFile, "ALIGNED8 static const Texture cake_end_texture_eu_%d[] = {\n", i);
+            print_raw_data(cFile, &tiles[i]);
+            fputs("};\n\n", cFile);
+        }
+    } else {
+        fprintf(cFile, "ALIGNED8 static const Texture cake_end_texture_data[] = {\n");
+        for (int i = 0; i < numTiles; ++i) {
+            print_raw_data(cFile, &tiles[i]);
+            fputc(',', cFile);
+            fputc('\n', cFile);
+        }
         fputs("};\n\n", cFile);
     }
+
     fclose(cFile);
 }
 
@@ -420,9 +430,9 @@ fail:
     exit(1);
 }
 
-void combine_cakeimg(const char *input, const char *output) {
+void combine_cakeimg(const char *input, const char *output, bool eu) {
     int W, H, SMALLH, SMALLW;
-    if (type == CakeEU) {
+    if (eu) {
         W = 5;
         H = 7;
         SMALLH = 32;
@@ -438,7 +448,7 @@ void combine_cakeimg(const char *input, const char *output) {
     if (!file) goto fail;
 
     rgba *combined;
-    if (type == Cake) {
+    if (!eu) {
         combined = malloc((SMALLH-1)*H * (SMALLW-1)*W * sizeof(rgba));
         for (int i = 0; i < H; i++) {
             for (int j = 0; j < W; j++) {
@@ -488,7 +498,7 @@ fail:
 // Modified from n64split
 static void usage() {
     fprintf(stderr,
-            "Usage: %s --type sky|cake|cake-eu|cake-cn {--combine INPUT OUTPUT | --split INPUT OUTPUT}\n"
+            "Usage: %s --type sky|cake|cake_eu {--combine INPUT OUTPUT | --split INPUT OUTPUT}\n"
             "\n"
             "Optional arguments:\n"
             " --write-tiles OUTDIR      Also create the individual tiles' PNG files\n", programName);
@@ -533,8 +543,6 @@ static int parse_arguments(int argc, char *argv[]) {
 
             if (strcmp(argv[i], "sky") == 0) {
                 type = Skybox;
-            } else if(strcmp(argv[i], "cake-cn") == 0) {
-                type = CakeCN;
             } else if(strcmp(argv[i], "cake-eu") == 0) {
                 type = CakeEU;
             } else if(strcmp(argv[i], "cake") == 0) {
@@ -568,6 +576,7 @@ bool imageMatchesDimensions(int width, int height) {
             break;
         }
     }
+
     if (!matchesDimensions) {
         if (type != CakeEU) {
             fprintf(stderr, "err: That type of image must be either %d x %d or %d x %d. Yours is %d x %d.\n",
@@ -611,9 +620,10 @@ int main(int argc, char *argv[]) {
                     combine_skybox(input, output);
                 break;
                 case Cake:
+                    combine_cakeimg(input, output, 0);
+                break;
                 case CakeEU:
-                case CakeCN:
-                    combine_cakeimg(input, output);
+                    combine_cakeimg(input, output, 1);
                 break;
                 default:
                     usage();
@@ -635,7 +645,7 @@ int main(int argc, char *argv[]) {
             }
 
             allocate_tiles();
-            
+
             init_tiles(image, expanded);
             switch (type) {
                 case Skybox:
@@ -644,7 +654,6 @@ int main(int argc, char *argv[]) {
                     break;
                 case Cake:
                 case CakeEU:
-                case CakeCN:
                     assign_tile_positions();
                     write_cake_c();
                     break;

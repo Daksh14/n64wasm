@@ -8,8 +8,6 @@
  */
 
 void bhv_purple_switch_loop(void) {
-    UNUSED u8 filler[4];
-
     switch (o->oAction) {
         /**
          * Set the switch's model and scale. If Mario is standing near the
@@ -18,10 +16,12 @@ void bhv_purple_switch_loop(void) {
         case PURPLE_SWITCH_ACT_IDLE:
             cur_obj_set_model(MODEL_PURPLE_SWITCH);
             cur_obj_scale(1.5f);
-            if (gMarioObject->platform == o && !(gMarioStates[0].action & MARIO_UNKNOWN_13)) {
-                if (lateral_dist_between_objects(o, gMarioObject) < 127.5) {
-                    o->oAction = PURPLE_SWITCH_ACT_PRESSED;
-                }
+            if (
+                gMarioObject->platform == o
+                && !(gMarioStates[0].action & MARIO_NO_PURPLE_SWITCH)
+                && lateral_dist_between_objects(o, gMarioObject) < 127.5f
+            ) {
+                o->oAction = PURPLE_SWITCH_ACT_PRESSED;
             }
             break;
 
@@ -30,7 +30,7 @@ void bhv_purple_switch_loop(void) {
          * Immediately transition to the ticking state.
          */
         case PURPLE_SWITCH_ACT_PRESSED:
-            cur_obj_scale_over_time(2, 3, 1.5f, 0.2f);
+            cur_obj_scale_over_time(SCALE_AXIS_Y, 3, 1.5f, 0.2f);
             if (o->oTimer == 3) {
                 cur_obj_play_sound_2(SOUND_GENERAL2_PURPLE_SWITCH);
                 o->oAction = PURPLE_SWITCH_ACT_TICKING;
@@ -46,8 +46,8 @@ void bhv_purple_switch_loop(void) {
          * up. When time is up, move to a waiting-while-pressed state.
          */
         case PURPLE_SWITCH_ACT_TICKING:
-            if (o->oBhvParams2ndByte != 0) {
-                if (o->oBhvParams2ndByte == 1 && gMarioObject->platform != o) {
+            if (o->oBehParams2ndByte != 0) {
+                if (o->oBehParams2ndByte == 1 && gMarioObject->platform != o) {
                     o->oAction++;
                 } else {
                     if (o->oTimer < 360) {
@@ -67,7 +67,7 @@ void bhv_purple_switch_loop(void) {
          * idle state.
          */
         case PURPLE_SWITCH_ACT_UNPRESSED:
-            cur_obj_scale_over_time(2, 3, 0.2f, 1.5f);
+            cur_obj_scale_over_time(SCALE_AXIS_Y, 3, 0.2f, 1.5f);
             if (o->oTimer == 3) {
                 o->oAction = PURPLE_SWITCH_ACT_IDLE;
             }

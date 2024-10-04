@@ -22,16 +22,15 @@ struct BowserFallingPlatformData sBowserFallingPlatform[] = {
 };
 
 void falling_bowser_plat_act_start(void) {
-    o->oBitSPlatformBowser = cur_obj_nearest_object_with_behavior(bhvBowser);
-    obj_set_collision_data(o, sBowserFallingPlatform[o->oBhvParams2ndByte].collision);
-    if (o->oBitSPlatformBowser != NULL) {
+    o->oBitsPlatformBowser = cur_obj_nearest_object_with_behavior(bhvBowser);
+    obj_set_collision_data(o, sBowserFallingPlatform[o->oBehParams2ndByte].collision);
+    if (o->oBitsPlatformBowser != NULL) {
         o->oAction = BOWSER_BITS_PLAT_ACT_CHECK;
     }
 }
 
 void falling_bowser_plat_act_check(void) {
-    UNUSED u8 filler[4];
-    struct Object *bowser = o->oBitSPlatformBowser;
+    struct Object *bowser = o->oBitsPlatformBowser;
 
     if (bowser->platform == o) {
         if (bowser->oAction == BOWSER_ACT_BIG_JUMP
@@ -46,24 +45,19 @@ void falling_bowser_plat_act_check(void) {
     }
 
     if (o->oSubAction == 0) {
-        o->oBitSPlatformTimer = 0;
+        o->oBitsPlatformTimer = 0;
     } else {
         if ((gDebugInfo[DEBUG_PAGE_EFFECTINFO][6] + 20)
-            * (o->oBhvParams2ndByte - 1) < o->oBitSPlatformTimer) {
+            * (o->oBehParams2ndByte - 1) < o->oBitsPlatformTimer) {
             o->oAction = BOWSER_BITS_PLAT_ACT_FALL;
         }
-        o->oBitSPlatformTimer++;
+        o->oBitsPlatformTimer++;
     }
 }
 
 void falling_bowser_plat_act_fall(void) {
-    Vec3f pos;
-    s16 angle;
-    f32 val;
-    UNUSED struct Object *bowser = o->oBitSPlatformBowser;
-
     if (o->oTimer == 0 || o->oTimer == 22) {
-        cur_obj_play_sound_2(SOUND_GENERAL_BOWSER_PLATFORM_2);
+        cur_obj_play_sound_2(SOUND_GENERAL_BOWSER_PLATFORM_FALL);
     }
 
     if (o->oTimer < 22) {
@@ -75,18 +69,19 @@ void falling_bowser_plat_act_fall(void) {
     }
 
     if (!(o->oTimer & 1) && o->oTimer < 14) {
-        angle = sBowserFallingPlatform[o->oBhvParams2ndByte].angle
+        s16 angle = sBowserFallingPlatform[o->oBehParams2ndByte].angle
                     + (gDebugInfo[DEBUG_PAGE_EFFECTINFO][1] << 8);
-        val = -(o->oTimer / 2) * 290 + 1740;
-        vec3f_copy_2(pos, &o->oPosX);
-        o->oPosX = sBowserFallingPlatform[o->oBhvParams2ndByte].posX + sins(angle + 0x14B0) * val;
-        o->oPosZ = sBowserFallingPlatform[o->oBhvParams2ndByte].posZ + coss(angle + 0x14B0) * val;
+        f32 val = -(o->oTimer / 2) * 290 + 1740;
+        Vec3f pos;
+        vec3f_copy(pos, &o->oPosVec);
+        o->oPosX = sBowserFallingPlatform[o->oBehParams2ndByte].posX + (sins(angle + 0x14B0) * val);
+        o->oPosZ = sBowserFallingPlatform[o->oBehParams2ndByte].posZ + (coss(angle + 0x14B0) * val);
         o->oPosY = 307.0f;
         spawn_mist_particles_variable(4, 0, 100.0f);
-        o->oPosX = sBowserFallingPlatform[o->oBhvParams2ndByte].posX + sins(angle - 0x14B0) * val;
-        o->oPosZ = sBowserFallingPlatform[o->oBhvParams2ndByte].posZ + coss(angle - 0x14B0) * val;
-        spawn_mist_particles_variable(4, 0, 100.0f);
-        vec3f_copy_2(&o->oPosX, pos);
+        o->oPosX = sBowserFallingPlatform[o->oBehParams2ndByte].posX + (sins(angle - 0x14B0) * val);
+        o->oPosZ = sBowserFallingPlatform[o->oBehParams2ndByte].posZ + (coss(angle - 0x14B0) * val);
+        spawn_mist_particles_variable(4, 0, 100);
+        vec3f_copy(&o->oPosVec, pos);
     }
 
     cur_obj_move_using_fvel_and_gravity();
@@ -96,7 +91,7 @@ void falling_bowser_plat_act_fall(void) {
     }
 }
 
-void (*sFallingBowserPlatformActions[])(void) = {
+ObjActionFunc sFallingBowserPlatformActions[] = {
     falling_bowser_plat_act_start,
     falling_bowser_plat_act_check,
     falling_bowser_plat_act_fall,

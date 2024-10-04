@@ -1,12 +1,11 @@
 #include <ultra64.h>
 
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
 // synthesis.c
 char shindouDebugPrint1[] = "Terminate-Canceled Channel %d,Phase %d\n";
 char shindouDebugPrint2[] = "S->W\n";
 char shindouDebugPrint3[] = "W->S\n";
 char shindouDebugPrint4[] = "S-Resample Pitch %x (old %d -> delay %d)\n";
-s32 shindouDebugPrintPadding1[] = {0,0,0};
 
 // heap.c
 char shindouDebugPrint5[] = "Warning:Kill Note  %x \n";

@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "engine/behavior_script.h"
 #include "engine/surface_collision.h"
+#include "engine/math_util.h"
 #include "game_init.h"
 #include "main.h"
 #include "object_constants.h"
@@ -14,10 +15,14 @@
 #include "sm64.h"
 #include "types.h"
 
-#define DEBUG_INFO_NOFLAGS (0 << 0)
-#define DEBUG_INFO_FLAG_DPRINT (1 << 0)
-#define DEBUG_INFO_FLAG_LSELECT (1 << 1)
-#define DEBUG_INFO_FLAG_ALL 0xFF
+#ifdef VANILLA_DEBUG
+
+enum DebugInfoFlags {
+    DEBUG_INFO_NOFLAGS      = (0 << 0),
+    DEBUG_INFO_FLAG_DPRINT  = (1 << 0),
+    DEBUG_INFO_FLAG_LSELECT = (1 << 1),
+    DEBUG_INFO_FLAG_ALL     = 0xFF
+};
 
 s16 gDebugPrintState1[6]; // prints top-down?
 s16 gDebugPrintState2[6]; // prints bottom-up?
@@ -57,34 +62,17 @@ s8 sDebugSysCursor = 0;
 s8 sDebugInfoButtonSeqID = 0;
 s16 sDebugInfoButtonSeq[] = { U_CBUTTONS, L_CBUTTONS, D_CBUTTONS, R_CBUTTONS, -1 };
 
-// most likely present in an ifdef DEBUG build. TODO: check DD version?
-void stub_debug_1(void) {
-}
-
-void stub_debug_2(void) {
-}
-
-void stub_debug_3(void) {
-}
-
-void stub_debug_4(void) {
-}
-
 /*
  * These 2 functions are called from the object list processor in regards to cycle
  * counts. They likely have stubbed out code that calculated the clock count and
  * its difference for consecutive calls.
  */
-s64 get_current_clock(void) {
-    s64 wtf = 0;
-
-    return wtf;
+UNUSED s64 get_current_clock(void) {
+    return 0;
 }
 
-s64 get_clock_difference(UNUSED s64 cycles) {
-    s64 wtf = 0;
-
-    return wtf;
+UNUSED s64 get_clock_difference(UNUSED s64 cycles) {
+    return 0;
 }
 
 /*
@@ -290,8 +278,6 @@ void reset_debug_objectinfo(void) {
     gUnknownWallCount = 0;
     gObjectCounter = 0;
     sDebugStringArrPrinted = FALSE;
-    D_8035FEE2 = 0;
-    D_8035FEE4 = 0;
 
     set_print_state_info(gDebugPrintState1, 20, 185, 40, 200, -15);
     set_print_state_info(gDebugPrintState2, 180, 30, 0, 150, 15);
@@ -360,15 +346,15 @@ UNUSED static void try_change_debug_page(void) {
 UNUSED static
 #endif
 void try_modify_debug_controls(void) {
-    s32 sp4;
+    s32 modifier;
 
     if (gPlayer1Controller->buttonPressed & Z_TRIG) {
         sNoExtraDebug ^= 1;
     }
     if (!(gPlayer1Controller->buttonDown & (L_TRIG | R_TRIG)) && !sNoExtraDebug) {
-        sp4 = 1;
+        modifier = 1;
         if (gPlayer1Controller->buttonDown & B_BUTTON) {
-            sp4 = 100;
+            modifier = 100;
         }
 
         if (sDebugInfoDPadMask & U_JPAD) {
@@ -393,18 +379,18 @@ void try_modify_debug_controls(void) {
                 gDebugInfo[sDebugPage][sDebugSysCursor] =
                     gDebugInfoOverwrite[sDebugPage][sDebugSysCursor];
             } else {
-                gDebugInfo[sDebugPage][sDebugSysCursor] = gDebugInfo[sDebugPage][sDebugSysCursor] - sp4;
+                gDebugInfo[sDebugPage][sDebugSysCursor] = gDebugInfo[sDebugPage][sDebugSysCursor] - modifier;
             }
         }
 
         if (sDebugInfoDPadMask & R_JPAD) {
-            gDebugInfo[sDebugPage][sDebugSysCursor] = gDebugInfo[sDebugPage][sDebugSysCursor] + sp4;
+            gDebugInfo[sDebugPage][sDebugSysCursor] = gDebugInfo[sDebugPage][sDebugSysCursor] + modifier;
         }
     }
 }
 
 // possibly a removed debug control (TODO: check DD)
-void stub_debug_5(void) {
+void stub_debug_control(void) {
 }
 
 /*
@@ -471,8 +457,6 @@ void try_print_debug_mario_level_info(void) {
  * [5][7] (b7 in the string array) to 1 to enable debug spawn.
  */
 void try_do_mario_debug_object_spawn(void) {
-    UNUSED u8 filler[4];
-
     if (sDebugPage == DEBUG_PAGE_STAGEINFO && gDebugInfo[DEBUG_PAGE_ENEMYINFO][7] == 1) {
         if (gPlayer1Controller->buttonPressed & R_JPAD) {
             spawn_object_relative(0, 0, 100, 200, gCurrentObject, MODEL_KOOPA_SHELL, bhvKoopaShell);
@@ -529,3 +513,5 @@ void debug_enemy_unknown(s16 *enemyArr) {
     enemyArr[6] = gDebugInfo[DEBUG_PAGE_ENEMYINFO][3];
     enemyArr[7] = gDebugInfo[DEBUG_PAGE_ENEMYINFO][4];
 }
+
+#endif

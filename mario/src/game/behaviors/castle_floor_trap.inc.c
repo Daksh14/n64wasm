@@ -8,10 +8,10 @@ void bhv_floor_trap_in_castle_loop(void) {
 }
 
 void bhv_castle_floor_trap_init(void) {
-    struct Object *sp2C;
-    sp2C = spawn_object_relative(0, -358, 0, 0, o, MODEL_CASTLE_BOWSER_TRAP, bhvFloorTrapInCastle);
-    sp2C = spawn_object_relative(0, 358, 0, 0, o, MODEL_CASTLE_BOWSER_TRAP, bhvFloorTrapInCastle);
-    sp2C->oMoveAngleYaw += 0x8000;
+    struct Object *floorTrapObj;
+    floorTrapObj = spawn_object_relative(0, -358, 0, 0, o, MODEL_CASTLE_BOWSER_TRAP, bhvFloorTrapInCastle);
+    floorTrapObj = spawn_object_relative(0, 358, 0, 0, o, MODEL_CASTLE_BOWSER_TRAP, bhvFloorTrapInCastle);
+    floorTrapObj->oMoveAngleYaw += 0x8000;
 }
 
 void bhv_castle_floor_trap_open_detect(void) {
@@ -61,8 +61,6 @@ void bhv_castle_floor_trap_rotate(void) {
 }
 
 void bhv_castle_floor_trap_loop(void) {
-    UNUSED u8 filler[12];
-
     switch (o->oAction) {
         case 0:
             bhv_castle_floor_trap_open_detect();

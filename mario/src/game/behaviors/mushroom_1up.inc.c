@@ -1,11 +1,17 @@
 // mushroom_1up.inc.c
 
 void bhv_1up_interact(void) {
-    UNUSED u8 filler[4];
-
-    if (obj_check_if_collided_with_object(o, gMarioObject) == TRUE) {
+    if (obj_check_if_collided_with_object(o, gMarioObject)) {
         play_sound(SOUND_GENERAL_COLLECT_1UP, gGlobalSoundSource);
+#ifdef MUSHROOMS_HEAL
+        gMarioState->healCounter   = 31;
+#ifdef BREATH_METER
+        gMarioState->breathCounter = 31;
+#endif
+#endif
+#ifdef ENABLE_LIVES
         gMarioState->numLives++;
+#endif
         o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
 #if ENABLE_RUMBLE
         queue_rumble_data(5, 80);
@@ -22,15 +28,17 @@ void bhv_1up_common_init(void) {
 
 void bhv_1up_init(void) {
     bhv_1up_common_init();
-    if (o->oBhvParams2ndByte == ONE_UP_BP_BEAT_BITDW_BOWSER) {
+#ifndef UNLOCK_ALL
+    if (o->oBehParams2ndByte == MUSHROOM_BP_REQUIRES_BOWSER_1) {
         if (!(save_file_get_flags() & (SAVE_FLAG_HAVE_KEY_1 | SAVE_FLAG_UNLOCKED_BASEMENT_DOOR))) {
             o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
         }
-    } else if (o->oBhvParams2ndByte == ONE_UP_BP_BEAT_BITFS_BOWSER) {
+    } else if (o->oBehParams2ndByte == MUSHROOM_BP_REQUIRES_BOWSER_2) {
         if (!(save_file_get_flags() & (SAVE_FLAG_HAVE_KEY_2 | SAVE_FLAG_UNLOCKED_UPSTAIRS_DOOR))) {
             o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
         }
     }
+#endif
 }
 
 void one_up_loop_in_air(void) {
@@ -45,14 +53,14 @@ void one_up_loop_in_air(void) {
 }
 
 void pole_1up_move_towards_mario(void) {
-    f32 sp34 = gMarioObject->header.gfx.pos[0] - o->oPosX;
-    f32 sp30 = gMarioObject->header.gfx.pos[1] + 120.0f - o->oPosY;
-    f32 sp2C = gMarioObject->header.gfx.pos[2] - o->oPosZ;
-    s16 sp2A = atan2s(sqrtf(sqr(sp34) + sqr(sp2C)), sp30);
+    f32 dx = gMarioObject->header.gfx.pos[0] - o->oPosX;
+    f32 dy = gMarioObject->header.gfx.pos[1] - o->oPosY + 120.0f;
+    f32 dz = gMarioObject->header.gfx.pos[2] - o->oPosZ;
+    s16 targetPitch = atan2s(sqrtf(sqr(dx) + sqr(dz)), dy);
 
-    obj_turn_toward_object(o, gMarioObject, 16, 0x1000);
+    obj_turn_toward_object(o, gMarioObject, O_MOVE_ANGLE_YAW_INDEX, 0x1000);
 
-    o->oMoveAnglePitch = approach_s16_symmetric(o->oMoveAnglePitch, sp2A, 0x1000);
+    o->oMoveAnglePitch = approach_s16_symmetric(o->oMoveAnglePitch, targetPitch, 0x1000);
     o->oVelY = sins(o->oMoveAnglePitch) * 30.0f;
     o->oForwardVel = coss(o->oMoveAnglePitch) * 30.0f;
 
@@ -66,11 +74,11 @@ void one_up_move_away_from_mario(s16 collisionFlags) {
     bhv_1up_interact();
 
     if (collisionFlags & OBJ_COL_FLAG_HIT_WALL) {
-        o->oAction = 2;
+        o->oAction = MUSHROOM_ACT_DISAPPEARING;
     }
 
     if (!is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 3000)) {
-        o->oAction = 2;
+        o->oAction = MUSHROOM_ACT_DISAPPEARING;
     }
 }
 
@@ -78,7 +86,7 @@ void bhv_1up_walking_loop(void) {
     object_step();
 
     switch (o->oAction) {
-        case 0:
+        case MUSHROOM_ACT_INIT:
             if (o->oTimer > 17) {
                 spawn_object(o, MODEL_NONE, bhvSparkleSpawn);
             }
@@ -91,20 +99,20 @@ void bhv_1up_walking_loop(void) {
 
             if (o->oTimer == 37) {
                 cur_obj_become_tangible();
-                o->oAction = 1;
+                o->oAction = MUSHROOM_ACT_MOVING;
                 o->oForwardVel = 2.0f;
             }
             break;
 
-        case 1:
+        case MUSHROOM_ACT_MOVING:
             if (o->oTimer > 300) {
-                o->oAction = 2;
+                o->oAction = MUSHROOM_ACT_DISAPPEARING;
             }
 
             bhv_1up_interact();
             break;
 
-        case 2:
+        case MUSHROOM_ACT_DISAPPEARING:
             obj_flicker_and_disappear(o, 30);
             bhv_1up_interact();
             break;
@@ -117,7 +125,7 @@ void bhv_1up_running_away_loop(void) {
     s16 collisionFlags = object_step();
 
     switch (o->oAction) {
-        case 0:
+        case MUSHROOM_ACT_INIT:
             if (o->oTimer > 17) {
                 spawn_object(o, MODEL_NONE, bhvSparkleSpawn);
             }
@@ -130,17 +138,17 @@ void bhv_1up_running_away_loop(void) {
 
             if (o->oTimer == 37) {
                 cur_obj_become_tangible();
-                o->oAction = 1;
+                o->oAction = MUSHROOM_ACT_MOVING;
                 o->oForwardVel = 8.0f;
             }
             break;
 
-        case 1:
+        case MUSHROOM_ACT_MOVING:
             spawn_object(o, MODEL_NONE, bhvSparkleSpawn);
             one_up_move_away_from_mario(collisionFlags);
             break;
 
-        case 2:
+        case MUSHROOM_ACT_DISAPPEARING:
             obj_flicker_and_disappear(o, 30);
             bhv_1up_interact();
             break;
@@ -156,7 +164,7 @@ void sliding_1up_move(void) {
         o->oForwardVel += 25.0f;
         o->oVelY = 0.0f;
     } else {
-        o->oForwardVel *= 0.98;
+        o->oForwardVel *= 0.98f;
     }
 
     if (o->oForwardVel > 40.0) {
@@ -164,24 +172,24 @@ void sliding_1up_move(void) {
     }
 
     if (!is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 5000)) {
-        o->oAction = 2;
+        o->oAction = MUSHROOM_ACT_DISAPPEARING;
     }
 }
 
 void bhv_1up_sliding_loop(void) {
     switch (o->oAction) {
-        case 0:
+        case MUSHROOM_ACT_INIT:
             set_object_visibility(o, 3000);
             if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 1000)) {
-                o->oAction = 1;
+                o->oAction = MUSHROOM_ACT_MOVING;
             }
             break;
 
-        case 1:
+        case MUSHROOM_ACT_MOVING:
             sliding_1up_move();
             break;
 
-        case 2:
+        case MUSHROOM_ACT_DISAPPEARING:
             obj_flicker_and_disappear(o, 30);
             bhv_1up_interact();
             break;
@@ -200,20 +208,20 @@ void bhv_1up_jump_on_approach_loop(void) {
     s16 collisionFlags;
 
     switch (o->oAction) {
-        case 0:
+        case MUSHROOM_ACT_INIT:
             if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 1000)) {
                 o->oVelY = 40.0f;
-                o->oAction = 1;
+                o->oAction = MUSHROOM_ACT_MOVING;
             }
             break;
 
-        case 1:
+        case MUSHROOM_ACT_MOVING:
             collisionFlags = object_step();
             one_up_move_away_from_mario(collisionFlags);
             spawn_object(o, MODEL_NONE, bhvSparkleSpawn);
             break;
 
-        case 2:
+        case MUSHROOM_ACT_DISAPPEARING:
             collisionFlags = object_step();
             bhv_1up_interact();
             obj_flicker_and_disappear(o, 30);
@@ -227,29 +235,29 @@ void bhv_1up_hidden_loop(void) {
     s16 collisionFlags;
 
     switch (o->oAction) {
-        case 0:
+        case MUSHROOM_ACT_INIT:
             o->header.gfx.node.flags |= GRAPH_RENDER_INVISIBLE;
-            if (o->oHidden1UpNumTouchedTriggers == o->oBhvParams2ndByte) {
+            if (o->o1UpHiddenTimesTriggered == o->oBehParams2ndByte) {
                 o->oVelY = 40.0f;
-                o->oAction = 3;
+                o->oAction = MUSHROOM_ACT_LOOP_IN_AIR;
                 o->header.gfx.node.flags &= ~GRAPH_RENDER_INVISIBLE;
                 play_sound(SOUND_GENERAL2_1UP_APPEAR, gGlobalSoundSource);
             }
             break;
 
-        case 1:
+        case MUSHROOM_ACT_MOVING:
             collisionFlags = object_step();
             one_up_move_away_from_mario(collisionFlags);
             spawn_object(o, MODEL_NONE, bhvSparkleSpawn);
             break;
 
-        case 2:
+        case MUSHROOM_ACT_DISAPPEARING:
             collisionFlags = object_step();
             bhv_1up_interact();
             obj_flicker_and_disappear(o, 30);
             break;
 
-        case 3:
+        case MUSHROOM_ACT_LOOP_IN_AIR:
             collisionFlags = object_step();
             if (o->oTimer > 17) {
                 spawn_object(o, MODEL_NONE, bhvSparkleSpawn);
@@ -259,7 +267,7 @@ void bhv_1up_hidden_loop(void) {
 
             if (o->oTimer == 37) {
                 cur_obj_become_tangible();
-                o->oAction = 1;
+                o->oAction = MUSHROOM_ACT_MOVING;
                 o->oForwardVel = 8.0f;
             }
             break;
@@ -267,10 +275,10 @@ void bhv_1up_hidden_loop(void) {
 }
 
 void bhv_1up_hidden_trigger_loop(void) {
-    if (obj_check_if_collided_with_object(o, gMarioObject) == TRUE) {
-        struct Object *hidden1Up = cur_obj_nearest_object_with_behavior(bhvHidden1Up);
-        if (hidden1Up != NULL) {
-            hidden1Up->oHidden1UpNumTouchedTriggers++;
+    if (obj_check_if_collided_with_object(o, gMarioObject)) {
+        struct Object *nearestHidden1up = cur_obj_nearest_object_with_behavior(bhvHidden1up);
+        if (nearestHidden1up != NULL) {
+            nearestHidden1up->o1UpHiddenTimesTriggered++;
         }
 
         o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
@@ -278,26 +286,24 @@ void bhv_1up_hidden_trigger_loop(void) {
 }
 
 void bhv_1up_hidden_in_pole_loop(void) {
-    UNUSED s16 collisionFlags;
-
     switch (o->oAction) {
-        case 0:
+        case MUSHROOM_ACT_INIT:
             o->header.gfx.node.flags |= GRAPH_RENDER_INVISIBLE;
-            if (o->oHidden1UpNumTouchedTriggers == o->oBhvParams2ndByte) {
+            if (o->o1UpHiddenTimesTriggered == o->oBehParams2ndByte) {
                 o->oVelY = 40.0f;
-                o->oAction = 3;
+                o->oAction = MUSHROOM_ACT_LOOP_IN_AIR;
                 o->header.gfx.node.flags &= ~GRAPH_RENDER_INVISIBLE;
                 play_sound(SOUND_GENERAL2_1UP_APPEAR, gGlobalSoundSource);
             }
             break;
 
-        case 1:
+        case MUSHROOM_ACT_MOVING:
             pole_1up_move_towards_mario();
-            collisionFlags = object_step();
+            object_step();
             break;
 
-        case 3:
-            collisionFlags = object_step();
+        case MUSHROOM_ACT_LOOP_IN_AIR:
+            object_step();
             if (o->oTimer > 17) {
                 spawn_object(o, MODEL_NONE, bhvSparkleSpawn);
             }
@@ -306,7 +312,7 @@ void bhv_1up_hidden_in_pole_loop(void) {
 
             if (o->oTimer == 37) {
                 cur_obj_become_tangible();
-                o->oAction = 1;
+                o->oAction = MUSHROOM_ACT_MOVING;
                 o->oForwardVel = 10.0f;
             }
             break;
@@ -314,10 +320,10 @@ void bhv_1up_hidden_in_pole_loop(void) {
 }
 
 void bhv_1up_hidden_in_pole_trigger_loop(void) {
-    if (obj_check_if_collided_with_object(o, gMarioObject) == TRUE) {
-        struct Object *hidden1Up = cur_obj_nearest_object_with_behavior(bhvHidden1UpInPole);
-        if (hidden1Up != NULL) {
-            hidden1Up->oHidden1UpNumTouchedTriggers++;
+    if (obj_check_if_collided_with_object(o, gMarioObject)) {
+        struct Object *nearestHidden1upInPole = cur_obj_nearest_object_with_behavior(bhvHidden1upInPole);
+        if (nearestHidden1upInPole != NULL) {
+            nearestHidden1upInPole->o1UpHiddenTimesTriggered++;
         }
 
         o->activeFlags = ACTIVE_FLAG_DEACTIVATED;
@@ -327,9 +333,9 @@ void bhv_1up_hidden_in_pole_trigger_loop(void) {
 void bhv_1up_hidden_in_pole_spawner_loop(void) {
     if (is_point_within_radius_of_mario(o->oPosX, o->oPosY, o->oPosZ, 700)) {
         s8 i;
-        spawn_object_relative(2, 0, 50, 0, o, MODEL_1UP, bhvHidden1UpInPole);
-        for (i = 0; i <= 1; i++) {
-            spawn_object_relative(0, 0, i * -200, 0, o, MODEL_NONE, bhvHidden1UpInPoleTrigger);
+        spawn_object_relative(2, 0, 50, 0, o, MODEL_1UP, bhvHidden1upInPole);
+        for (i = 0; i < 2; i++) {
+            spawn_object_relative(0, 0, i * -200, 0, o, MODEL_NONE, bhvHidden1upInPoleTrigger);
         }
 
         o->activeFlags = ACTIVE_FLAG_DEACTIVATED;

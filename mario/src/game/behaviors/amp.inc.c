@@ -22,9 +22,7 @@ static struct ObjectHitbox sAmpHitbox = {
  * Homing amp initialization function.
  */
 void bhv_homing_amp_init(void) {
-    o->oHomeX = o->oPosX;
-    o->oHomeY = o->oPosY;
-    o->oHomeZ = o->oPosZ;
+    vec3f_copy(&o->oHomeVec, &o->oPosVec);
     o->oGravity = 0.0f;
     o->oFriction = 1.0f;
     o->oBuoyancy = 1.0f;
@@ -48,19 +46,12 @@ static void check_amp_attack(void) {
     obj_set_hitbox(o, &sAmpHitbox);
 
     if (o->oInteractStatus & INT_STATUS_INTERACTED) {
-        // Unnecessary if statement, maybe caused by a macro for
-        //     if (o->oInteractStatus & INT_STATUS_INTERACTED) {
-        //         o->oAction = X;
-        //     }
-        // ?
-        if (o->oInteractStatus & INT_STATUS_INTERACTED) {
-            // This function is used for both normal amps and homing amps,
-            // AMP_ACT_ATTACK_COOLDOWN == HOMING_AMP_ACT_ATTACK_COOLDOWN
-            o->oAction = AMP_ACT_ATTACK_COOLDOWN;
-        }
+        // This function is used for both normal amps and homing amps,
+        // AMP_ACT_ATTACK_COOLDOWN == HOMING_AMP_ACT_ATTACK_COOLDOWN
+        o->oAction = AMP_ACT_ATTACK_COOLDOWN;
 
         // Clear interact status
-        o->oInteractStatus = 0;
+        o->oInteractStatus = INT_STATUS_NONE;
     }
 }
 
@@ -83,7 +74,7 @@ static void homing_amp_appear_loop(void) {
     // evaluates to 0.1, which is the same as it was before. After 30 frames, it ends at
     // a scale factor of 0.97. The amp remains at 97% of its real height for 60 more frames.
     if (o->oTimer < 30) {
-        cur_obj_scale(0.1 + 0.9 * (f32)(o->oTimer / 30.0f));
+        cur_obj_scale(0.1f + 0.9f * (f32)(o->oTimer / 30.0f));
     } else {
         o->oAnimState = 1;
     }
@@ -131,7 +122,7 @@ static void homing_amp_chase_loop(void) {
         // while curving towards him.
         o->oForwardVel = 10.0f;
 
-        obj_turn_toward_object(o, gMarioObject, 16, 0x400);
+        obj_turn_toward_object(o, gMarioObject, O_MOVE_ANGLE_YAW_INDEX, 0x400);
 
         // The amp's average Y will approach Mario's graphical Y position + 250
         // at a rate of 10 units per frame. Interestingly, this is different from
@@ -157,16 +148,12 @@ static void homing_amp_chase_loop(void) {
  * Give up on chasing Mario.
  */
 static void homing_amp_give_up_loop(void) {
-    UNUSED u8 filler[8];
-
     // Move forward for 152 frames
     o->oForwardVel = 15.0f;
 
     if (o->oTimer > 150) {
         // Hide the amp and reset it back to its inactive state
-        o->oPosX = o->oHomeX;
-        o->oPosY = o->oHomeY;
-        o->oPosZ = o->oHomeZ;
+        vec3f_copy(&o->oPosVec, &o->oHomeVec);
         o->header.gfx.node.flags |= GRAPH_RENDER_INVISIBLE;
         o->oAction = HOMING_AMP_ACT_INACTIVE;
         o->oAnimState = 0;
@@ -237,13 +224,11 @@ void bhv_homing_amp_loop(void) {
  * Circling amp initialization function.
  */
 void bhv_circling_amp_init(void) {
-    o->oHomeX = o->oPosX;
-    o->oHomeY = o->oPosY;
-    o->oHomeZ = o->oPosZ;
+    vec3f_copy(&o->oHomeVec, &o->oPosVec);
     o->oAnimState = 1;
 
     // Determine the radius of the circling amp's circle
-    switch (o->oBhvParams2ndByte) {
+    switch (o->oBehParams2ndByte) {
         case AMP_BP_ROT_RADIUS_200:
             o->oAmpRadiusOfRotation = 200.0f;
             break;
@@ -274,11 +259,11 @@ void bhv_circling_amp_init(void) {
 static void fixed_circling_amp_idle_loop(void) {
     // Turn towards Mario, in both yaw and pitch.
     f32 xToMario = gMarioObject->header.gfx.pos[0] - o->oPosX;
-    f32 yToMario = gMarioObject->header.gfx.pos[1] + 120.0f - o->oPosY;
+    f32 yToMario = gMarioObject->header.gfx.pos[1] - o->oPosY + 120.0f;
     f32 zToMario = gMarioObject->header.gfx.pos[2] - o->oPosZ;
     s16 vAngleToMario = atan2s(sqrtf(xToMario * xToMario + zToMario * zToMario), -yToMario);
 
-    obj_turn_toward_object(o, gMarioObject, 19, 0x1000);
+    obj_turn_toward_object(o, gMarioObject, O_FACE_ANGLE_YAW_INDEX, 0x1000);
     o->oFaceAnglePitch = approach_s16_symmetric(o->oFaceAnglePitch, vAngleToMario, 0x1000);
 
     // Oscillate 40 units up and down.
@@ -331,7 +316,7 @@ static void circling_amp_idle_loop(void) {
 void bhv_circling_amp_loop(void) {
     switch (o->oAction) {
         case AMP_ACT_IDLE:
-            if (o->oBhvParams2ndByte == AMP_BP_ROT_RADIUS_0) {
+            if (o->oBehParams2ndByte == AMP_BP_ROT_RADIUS_0) {
                 fixed_circling_amp_idle_loop();
             } else {
                 circling_amp_idle_loop();

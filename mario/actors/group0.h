@@ -11,10 +11,10 @@ extern const Gfx bubble_seg4_dl_0401DDE0[];
 
 // burn_smoke
 extern const GeoLayout burn_smoke_geo[];
-extern const Gfx burn_smoke_seg4_dl_04022000[];
-extern const Gfx burn_smoke_seg4_dl_04022028[];
-extern const Gfx burn_smoke_seg4_dl_04022048[];
-extern const Gfx burn_smoke_seg4_dl_04022070[];
+extern const Gfx burn_smoke_seg4_sub_dl_begin[];
+extern const Gfx burn_smoke_seg4_sub_dl_model[];
+extern const Gfx burn_smoke_seg4_sub_dl_end[];
+extern const Gfx burn_smoke_seg4_dl[];
 
 // mario
 extern const GeoLayout mario_geo_face_and_wings[];
@@ -282,25 +282,14 @@ extern const Gfx sparkles_animation_seg4_dl_04035330[];
 extern const Gfx sparkles_animation_seg4_dl_04035348[];
 extern const Gfx sparkles_animation_seg4_dl_04035360[];
 
-// stomp_smoke
+// small water splash
 extern const GeoLayout small_water_splash_geo[];
-extern const GeoLayout mario_TODO_geo_0000E0[];
-extern const Gfx stomp_smoke_seg4_dl_04025148[];
-extern const Gfx stomp_smoke_seg4_dl_04025190[];
-extern const Gfx stomp_smoke_seg4_dl_040251C8[];
-extern const Gfx stomp_smoke_seg4_dl_040251E0[];
-extern const Gfx stomp_smoke_seg4_dl_040251F8[];
-extern const Gfx stomp_smoke_seg4_dl_04025210[];
-extern const Gfx stomp_smoke_seg4_dl_04025228[];
-extern const Gfx stomp_smoke_seg4_dl_04025240[];
-extern const Gfx stomp_smoke_seg4_dl_04025258[];
-extern const Gfx stomp_smoke_seg4_dl_04025270[];
-extern const Gfx stomp_smoke_seg4_dl_04025288[];
-extern const Gfx stomp_smoke_seg4_dl_040252A0[];
-extern const Gfx stomp_smoke_seg4_dl_040252B8[];
-extern const Gfx stomp_smoke_seg4_dl_040252D0[];
-extern const Gfx stomp_smoke_seg4_dl_040252E8[];
-extern const Gfx stomp_smoke_seg4_dl_04025300[];
+extern const Gfx small_water_splash_seg4_dl_0[];
+extern const Gfx small_water_splash_seg4_dl_1[];
+extern const Gfx small_water_splash_seg4_dl_2[];
+extern const Gfx small_water_splash_seg4_dl_3[];
+extern const Gfx small_water_splash_seg4_dl_4[];
+extern const Gfx small_water_splash_seg4_dl_5[];
 
 // walk_smoke
 extern const GeoLayout smoke_geo[];

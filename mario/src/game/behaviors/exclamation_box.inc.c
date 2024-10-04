@@ -1,175 +1,163 @@
 // exclamation_box.inc.c
 
 struct ObjectHitbox sExclamationBoxHitbox = {
-    /* interactType:      */ INTERACT_BREAKABLE,
-    /* downOffset:        */ 5,
-    /* damageOrCoinValue: */ 0,
-    /* health:            */ 1,
-    /* numLootCoins:      */ 0,
-    /* radius:            */ 40,
-    /* height:            */ 30,
-    /* hurtboxRadius:     */ 40,
-    /* hurtboxHeight:     */ 30,
+    .interactType      = INTERACT_BREAKABLE,
+    .downOffset        = 5,
+    .damageOrCoinValue = 0,
+    .health            = 1,
+    .numLootCoins      = 0,
+    .radius            = 40,
+    .height            = 30,
+    .hurtboxRadius     = 40,
+    .hurtboxHeight     = 30,
 };
 
 struct ExclamationBoxContents {
-    u8 id;
-    u8 unused;
-    u8 bhvParams1stByte;
-    u8 model;
+    ModelID32 model;
     const BehaviorScript *behavior;
+    u8 behParam;
 };
 
 struct ExclamationBoxContents sExclamationBoxContents[] = {
-    { EXCLAMATION_BOX_BP_WING_CAP,         0,                0, MODEL_MARIOS_WING_CAP,  bhvWingCap               },
-    { EXCLAMATION_BOX_BP_METAL_CAP,        0,                0, MODEL_MARIOS_METAL_CAP, bhvMetalCap              },
-    { EXCLAMATION_BOX_BP_VANISH_CAP,       0,                0, MODEL_MARIOS_CAP,       bhvVanishCap             },
-    { EXCLAMATION_BOX_BP_KOOPA_SHELL,      0,                0, MODEL_KOOPA_SHELL,      bhvKoopaShell            },
-    { EXCLAMATION_BOX_BP_ONE_COIN,         0,                0, MODEL_YELLOW_COIN,      bhvSingleCoinGetsSpawned },
-    { EXCLAMATION_BOX_BP_THREE_COINS,      0,                0, MODEL_NONE,             bhvThreeCoinsSpawn       },
-    { EXCLAMATION_BOX_BP_TEN_COINS,        0,                0, MODEL_NONE,             bhvTenCoinsSpawn         },
-    { EXCLAMATION_BOX_BP_1UP_WALKING,      0,                0, MODEL_1UP,              bhv1UpWalking            },
-    { EXCLAMATION_BOX_BP_STAR_ACT_1,       0, STAR_INDEX_ACT_1, MODEL_STAR,             bhvSpawnedStar           },
-    { EXCLAMATION_BOX_BP_1UP_RUNNING_AWAY, 0,                0, MODEL_1UP,              bhv1UpRunningAway        },
-    { EXCLAMATION_BOX_BP_STAR_ACT_2,       0, STAR_INDEX_ACT_2, MODEL_STAR,             bhvSpawnedStar           },
-    { EXCLAMATION_BOX_BP_STAR_ACT_3,       0, STAR_INDEX_ACT_3, MODEL_STAR,             bhvSpawnedStar           },
-    { EXCLAMATION_BOX_BP_STAR_ACT_4,       0, STAR_INDEX_ACT_4, MODEL_STAR,             bhvSpawnedStar           },
-    { EXCLAMATION_BOX_BP_STAR_ACT_5,       0, STAR_INDEX_ACT_5, MODEL_STAR,             bhvSpawnedStar           },
-    { EXCLAMATION_BOX_BP_STAR_ACT_6,       0, STAR_INDEX_ACT_6, MODEL_STAR,             bhvSpawnedStar           },
-    { EXCLAMATION_BOX_BP_END,              0,                0, MODEL_NONE,             NULL                     },
+    [EXCLAMATION_BOX_BP_WING_CAP        ] = { MODEL_MARIOS_WING_CAP,  bhvWingCap,               0 },
+    [EXCLAMATION_BOX_BP_METAL_CAP       ] = { MODEL_MARIOS_METAL_CAP, bhvMetalCap,              0 },
+    [EXCLAMATION_BOX_BP_VANISH_CAP      ] = { MODEL_MARIOS_CAP,       bhvVanishCap,             0 },
+    [EXCLAMATION_BOX_BP_KOOPA_SHELL     ] = { MODEL_KOOPA_SHELL,      bhvKoopaShell,            0 },
+    [EXCLAMATION_BOX_BP_COINS_1         ] = { MODEL_YELLOW_COIN,      bhvSingleCoinGetsSpawned, 0 },
+    [EXCLAMATION_BOX_BP_COINS_3         ] = { MODEL_NONE,             bhvThreeCoinsSpawn,       0 },
+    [EXCLAMATION_BOX_BP_COINS_10        ] = { MODEL_NONE,             bhvTenCoinsSpawn,         0 },
+    [EXCLAMATION_BOX_BP_1UP_WALKING     ] = { MODEL_1UP,              bhv1upWalking,            0 },
+    [EXCLAMATION_BOX_BP_STAR_1          ] = { MODEL_STAR,             bhvSpawnedStar,           0 },
+    [EXCLAMATION_BOX_BP_1UP_RUNNING_AWAY] = { MODEL_1UP,              bhv1upRunningAway,        0 },
+    [EXCLAMATION_BOX_BP_STAR_2          ] = { MODEL_STAR,             bhvSpawnedStar,           1 },
+    [EXCLAMATION_BOX_BP_STAR_3          ] = { MODEL_STAR,             bhvSpawnedStar,           2 },
+    [EXCLAMATION_BOX_BP_STAR_4          ] = { MODEL_STAR,             bhvSpawnedStar,           3 },
+    [EXCLAMATION_BOX_BP_STAR_5          ] = { MODEL_STAR,             bhvSpawnedStar,           4 },
+    [EXCLAMATION_BOX_BP_STAR_6          ] = { MODEL_STAR,             bhvSpawnedStar,           5 },
 };
 
-void bhv_rotating_exclamation_box_loop(void) {
-    if (o->parentObj->oAction != 1) {
+void bhv_rotating_exclamation_mark_loop(void) {
+    if (o->parentObj->oAction != EXCLAMATION_BOX_ACT_OUTLINE) {
         obj_mark_for_deletion(o);
     }
 }
 
-void exclamation_box_act_0(void) {
-    if (o->oBhvParams2ndByte <= EXCLAMATION_BOX_BP_SPECIAL_CAP_END) {
-        o->oAnimState = o->oBhvParams2ndByte;
-        if ((save_file_get_flags() & sCapSaveFlags[o->oBhvParams2ndByte])
-            || ((o->oBhvParams >> 24) & 0xFF)) {
-            o->oAction = 2;
-        } else {
-            o->oAction = 1;
-        }
+void exclamation_box_act_init(void) {
+    if (o->oBehParams2ndByte < EXCLAMATION_BOX_BP_KOOPA_SHELL) {
+        o->oAnimState = o->oBehParams2ndByte;
+#ifdef UNLOCK_ALL
+        const u8 tangible = TRUE;
+#else
+        const u8 tangible = ((save_file_get_flags() & sCapSaveFlags[o->oBehParams2ndByte])
+                          || (GET_BPARAM1(o->oBehParams) != EXCLAMATION_BOX_BP1_NEEDS_SWITCH));
+#endif
+        o->oAction = tangible ? EXCLAMATION_BOX_ACT_ACTIVE : EXCLAMATION_BOX_ACT_OUTLINE;
     } else {
-        o->oAnimState = EXCLAMATION_BOX_ANIM_STATE_DEFAULT;
-        o->oAction = 2;
+        o->oAnimState = EXCLAMATION_BOX_ANIM_STATE_YELLOW;
+        o->oAction = EXCLAMATION_BOX_ACT_ACTIVE;
     }
 }
 
-void exclamation_box_act_1(void) {
+void exclamation_box_act_outline(void) {
     cur_obj_become_intangible();
-
     if (o->oTimer == 0) {
         spawn_object(o, MODEL_EXCLAMATION_POINT, bhvRotatingExclamationMark);
         cur_obj_set_model(MODEL_EXCLAMATION_BOX_OUTLINE);
     }
-
-    if ((save_file_get_flags() & sCapSaveFlags[o->oBhvParams2ndByte])
-        || ((o->oBhvParams >> 24) & 0xFF)) {
-        o->oAction = 2;
+    if ((save_file_get_flags() & sCapSaveFlags[o->oBehParams2ndByte])
+     || (GET_BPARAM1(o->oBehParams) != EXCLAMATION_BOX_BP1_NEEDS_SWITCH)) {
+        o->oAction = EXCLAMATION_BOX_ACT_ACTIVE;
         cur_obj_set_model(MODEL_EXCLAMATION_BOX);
     }
 }
 
-void exclamation_box_act_2(void) {
+void exclamation_box_act_active(void) {
     obj_set_hitbox(o, &sExclamationBoxHitbox);
-
     if (o->oTimer == 0) {
         cur_obj_unhide();
         cur_obj_become_tangible();
-        o->oInteractStatus = 0;
+        o->oInteractStatus = INT_STATUS_NONE;
         o->oPosY = o->oHomeY;
         o->oGraphYOffset = 0.0f;
     }
-
     if (cur_obj_was_attacked_or_ground_pounded()) {
         cur_obj_become_intangible();
-        o->oExclamationBoxUnkFC = 0x4000;
+        o->oExclamationBoxScaleAngle = 0x4000;
         o->oVelY = 30.0f;
         o->oGravity = -8.0f;
         o->oFloorHeight = o->oPosY;
-        o->oAction = 3;
+        o->oAction = EXCLAMATION_BOX_ACT_SCALING;
 #if ENABLE_RUMBLE
         queue_rumble_data(5, 80);
 #endif
     }
-
     load_object_collision_model();
 }
 
-void exclamation_box_act_3(void) {
-    UNUSED u8 filler[4];
-
+void exclamation_box_act_scaling(void) {
     cur_obj_move_using_fvel_and_gravity();
-
     if (o->oVelY < 0.0f) {
         o->oVelY = 0.0f;
         o->oGravity = 0.0f;
     }
-
-    o->oExclamationBoxUnkF8 = (sins(o->oExclamationBoxUnkFC) + 1.0) * 0.3 + 0.0;
-    o->oExclamationBoxUnkF4 = (-sins(o->oExclamationBoxUnkFC) + 1.0) * 0.5 + 1.0;
-    o->oGraphYOffset = (-sins(o->oExclamationBoxUnkFC) + 1.0) * 26.0;
-    o->oExclamationBoxUnkFC += 0x1000;
-    o->header.gfx.scale[0] = o->oExclamationBoxUnkF4 * 2.0f;
-    o->header.gfx.scale[1] = o->oExclamationBoxUnkF8 * 2.0f;
-    o->header.gfx.scale[2] = o->oExclamationBoxUnkF4 * 2.0f;
-
+    o->oGraphYOffset                  = ((-sins(o->oExclamationBoxScaleAngle) + 1.0f) * 26.0f);
+    o->oExclamationBoxHorizontalScale = ((-sins(o->oExclamationBoxScaleAngle) + 1.0f) *  0.5f) + 1.0f;
+    o->oExclamationBoxVerticalScale   = (( sins(o->oExclamationBoxScaleAngle) + 1.0f) *  0.3f) + 0.0f;
+    o->oExclamationBoxScaleAngle += 0x1000;
+    obj_scale_xyz(o,
+        (o->oExclamationBoxHorizontalScale * 2.0f),
+        (o->oExclamationBoxVerticalScale   * 2.0f),
+        (o->oExclamationBoxHorizontalScale * 2.0f)
+    );
     if (o->oTimer == 7) {
-        o->oAction = 4;
+        o->oAction = EXCLAMATION_BOX_ACT_EXPLODE;
     }
 }
 
-void exclamation_box_spawn_contents(struct ExclamationBoxContents *contents, u8 targetContentsID) {
+void exclamation_box_spawn_contents(struct ExclamationBoxContents *contentsList, u8 boxType) {
     struct Object *contentsObj = NULL;
 
-    while (contents->id != EXCLAMATION_BOX_BP_END) {
-        if (targetContentsID == contents->id) {
-            contentsObj = spawn_object(o, contents->model, contents->behavior);
-            contentsObj->oVelY = 20.0f;
-            contentsObj->oForwardVel = 3.0f;
-            contentsObj->oMoveAngleYaw = gMarioObject->oMoveAngleYaw;
-            o->oBhvParams |= contents->bhvParams1stByte << 24;
-            if (contents->model == MODEL_STAR) {
-                o->oFlags |= OBJ_FLAG_PERSISTENT_RESPAWN;
-            }
-            break;
+    if (boxType < ARRAY_COUNT(sExclamationBoxContents)) {
+        struct ExclamationBoxContents *contents = &contentsList[boxType];
+
+        contentsObj = spawn_object(o, contents->model, contents->behavior);
+        contentsObj->oVelY = 20.0f;
+        contentsObj->oForwardVel = 3.0f;
+        contentsObj->oMoveAngleYaw = gMarioObject->oMoveAngleYaw;
+        OR_BPARAM1(o->oBehParams, contents->behParam);
+        if (contents->model == MODEL_STAR) {
+            o->oFlags |= OBJ_FLAG_PERSISTENT_RESPAWN;
         }
-        contents++;
     }
 }
 
-void exclamation_box_act_4(void) {
-    exclamation_box_spawn_contents(sExclamationBoxContents, o->oBhvParams2ndByte);
+void exclamation_box_act_explode(void) {
+    exclamation_box_spawn_contents(sExclamationBoxContents, o->oBehParams2ndByte);
     spawn_mist_particles_variable(0, 0, 46.0f);
     spawn_triangle_break_particles(20, MODEL_CARTOON_STAR, 0.3f, o->oAnimState);
     create_sound_spawner(SOUND_GENERAL_BREAK_BOX);
-
-    if (o->oBhvParams2ndByte <= EXCLAMATION_BOX_BP_SPECIAL_CAP_END) {
-        o->oAction = 5;
+    if (o->oBehParams2ndByte <= EXCLAMATION_BOX_BP_KOOPA_SHELL) {
+        // Cap boxes + Koopa shell boxes.
+        o->oAction = EXCLAMATION_BOX_ACT_WAIT_FOR_RESPAWN;
         cur_obj_hide();
     } else {
         obj_mark_for_deletion(o);
     }
 }
 
-void exclamation_box_act_5(void) {
+void exclamation_box_act_wait_for_respawn(void) {
     if (o->oTimer > 300) {
-        o->oAction = 2;
+        o->oAction = EXCLAMATION_BOX_ACT_ACTIVE;
     }
 }
 
-void (*sExclamationBoxActions[])(void) = {
-    exclamation_box_act_0,
-    exclamation_box_act_1,
-    exclamation_box_act_2,
-    exclamation_box_act_3,
-    exclamation_box_act_4,
-    exclamation_box_act_5,
+ObjActionFunc sExclamationBoxActions[] = {
+    exclamation_box_act_init,
+    exclamation_box_act_outline,
+    exclamation_box_act_active,
+    exclamation_box_act_scaling,
+    exclamation_box_act_explode,
+    exclamation_box_act_wait_for_respawn,
 };
 
 void bhv_exclamation_box_loop(void) {

@@ -12,6 +12,7 @@
 #include "engine/behavior_script.h"
 #include "audio/external.h"
 #include "obj_behaviors.h"
+#include "level_geo.h"
 
 /**
  * This file contains the function that handles 'environment effects',
@@ -39,7 +40,6 @@ s16 gSnowParticleMaxCount;
 
 /* DATA */
 s8 gEnvFxMode = ENVFX_MODE_NONE;
-UNUSED s32 D_80330644 = 0;
 
 /// Template for a snow particle triangle
 Vtx gSnowTempVtx[3] = { { { { -5, 5, 0 }, 0, { 0, 0 }, { 0x7F, 0x7F, 0x7F, 0xFF } } },
@@ -115,7 +115,7 @@ void envfx_update_snowflake_count(s32 mode, Vec3s marioPos) {
             waterLevel = find_water_level(marioPos[0], marioPos[2]);
 
             gSnowParticleCount =
-                (((s32)((waterLevel - 400.0f - (f32) marioPos[1]) * 0.001) << 0x10) >> 0x10) * 5;
+                (((s32)((waterLevel - 400.0f - (f32) marioPos[1]) * 0.001f) << 0x10) >> 0x10) * 5;
 
             if (gSnowParticleCount < 0) {
                 gSnowParticleCount = 0;
@@ -154,8 +154,8 @@ void orbit_from_positions(Vec3s from, Vec3s to, s16 *radius, s16 *pitch, s16 *ya
     f32 dy = to[1] - from[1];
     f32 dz = to[2] - from[2];
 
-    *radius = (s16) sqrtf(dx * dx + dy * dy + dz * dz);
-    *pitch = atan2s(sqrtf(dx * dx + dz * dz), dy);
+    *radius = (s16) sqrtf(sqr(dx) + sqr(dy) + sqr(dz));
+    *pitch = atan2s(sqrtf(sqr(dx) + sqr(dz)), dy);
     *yaw = atan2s(dz, dx);
 }
 
@@ -269,7 +269,7 @@ void envfx_update_snow_blizzard(s32 snowCylinderX, s32 snowCylinderY, s32 snowCy
 /*! Unused function. Checks whether a position is laterally within 3000 units
  *  to the point (x: 3380, z: -520). Considering there is an unused blizzard
  *  snow mode, this could have been used to check whether Mario is in a
- *  'blizzard area'. In Cool, Cool Mountain and Snowman's Land the area lies
+ *  'blizzard area'. In Cool Cool Mountain and Snowman's Land the area lies
  *  near the starting point and doesn't seem meaningful. Notably, the point is
  *  close to the entrance of SL, so maybe there were plans for an extra hint to
  *  find it. The radius of 3000 units is quite large for that though, covering

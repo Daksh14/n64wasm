@@ -1,7 +1,6 @@
 // whomp.inc.c
 
 void whomp_play_sfx_from_pound_animation(void) {
-    UNUSED s32 animFrame = o->header.gfx.animInfo.animFrame;
     s32 playSound = FALSE;
 
     if (o->oForwardVel < 5.0f) {
@@ -21,7 +20,7 @@ void whomp_init(void) {
     cur_obj_init_animation_with_accel_and_sound(0, 1.0f);
     cur_obj_set_pos_to_home();
 
-    if (o->oBhvParams2ndByte != WHOMP_BP_SMALL) {
+    if (o->oBehParams2ndByte != 0) {
         gSecondCameraFocus = o;
         cur_obj_scale(2.0f);
         if (o->oSubAction == 0) {
@@ -32,7 +31,7 @@ void whomp_init(void) {
                 cur_obj_set_pos_to_home();
                 o->oHealth = 3;
             }
-        } else if (cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_UP,
+        } else if (cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_UP, 
             DIALOG_FLAG_TURN_TO_MARIO, CUTSCENE_DIALOG, DIALOG_114)) {
             o->oAction = 2;
         }
@@ -65,13 +64,11 @@ void whomp_turn(void) {
 void whomp_patrol(void) {
     s16 marioAngle = abs_angle_diff(o->oAngleToMario, o->oMoveAngleYaw);
     f32 distWalked = cur_obj_lateral_dist_to_home();
-    f32 patrolDist;
-
-    if (gCurrLevelNum == LEVEL_BITS) {
-        patrolDist = 200.0f;
-    } else {
-        patrolDist = 700.0f;
-    }
+#ifdef ENABLE_VANILLA_LEVEL_SPECIFIC_CHECKS // Make this a behavior param?
+    f32 patrolDist = gCurrLevelNum == LEVEL_BITS ? 200.0f : 700.0f;
+#else
+    f32 patrolDist = 700.0f;
+#endif
 
     cur_obj_init_animation_with_accel_and_sound(0, 1.0f);
     o->oForwardVel = 3.0f;
@@ -130,8 +127,7 @@ void whomp_jump(void) {
         o->oVelY = 40.0f;
     }
 
-    if (o->oTimer < 8) {
-    } else {
+    if (o->oTimer >= 8) {
         o->oAngleVelPitch += 0x100;
         o->oFaceAnglePitch += o->oAngleVelPitch;
         if (o->oFaceAnglePitch > 0x4000) {
@@ -165,12 +161,12 @@ void king_whomp_on_ground(void) {
             if (o->oHealth == 0) {
                 o->oAction = 8;
             } else {
-                vec3f_copy_2(pos, &o->oPosX);
-                vec3f_copy_2(&o->oPosX, &gMarioObject->oPosX);
+                vec3f_copy(pos, &o->oPosVec);
+                vec3f_copy(&o->oPosVec, &gMarioObject->oPosVec);
                 spawn_mist_particles_variable(0, 0, 100.0f);
                 spawn_triangle_break_particles(20, MODEL_DIRT_ANIMATION, 3.0f, 4);
                 cur_obj_shake_screen(SHAKE_POS_SMALL);
-                vec3f_copy_2(&o->oPosX, pos);
+                vec3f_copy(&o->oPosVec, pos);
             }
             o->oSubAction++;
         }
@@ -213,7 +209,7 @@ void whomp_on_ground_general(void) {
         o->oAngleVelYaw = 0;
         o->oAngleVelRoll = 0;
 
-        if (o->oBhvParams2ndByte != WHOMP_BP_SMALL) {
+        if (o->oBehParams2ndByte != 0) {
             king_whomp_on_ground();
         } else {
             whomp_on_ground();
@@ -227,7 +223,7 @@ void whomp_on_ground_general(void) {
     } else {
         o->oAngleVelPitch = 0;
         o->oFaceAnglePitch = 0;
-        if (o->oBhvParams2ndByte != WHOMP_BP_SMALL) {
+        if (o->oBehParams2ndByte != 0) {
             o->oAction = 2;
         } else {
             o->oAction = 1;
@@ -236,8 +232,8 @@ void whomp_on_ground_general(void) {
 }
 
 void whomp_die(void) {
-    if (o->oBhvParams2ndByte != WHOMP_BP_SMALL) {
-        if (cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_UP,
+    if (o->oBehParams2ndByte != 0) {
+        if (cur_obj_update_dialog_with_cutscene(MARIO_DIALOG_LOOK_UP, 
             DIALOG_FLAG_TEXT_DEFAULT, CUTSCENE_DIALOG, DIALOG_115)) {
             obj_set_angle(o, 0, 0, 0);
             cur_obj_hide();
@@ -265,7 +261,7 @@ void king_whomp_stop_music(void) {
     }
 }
 
-void (*sWhompActions[])(void) = {
+ObjActionFunc sWhompActions[] = {
     whomp_init,
     whomp_patrol,
     king_whomp_chase,
@@ -282,7 +278,7 @@ void bhv_whomp_loop(void) {
     cur_obj_call_action_function(sWhompActions);
     cur_obj_move_standard(-20);
     if (o->oAction != 9) {
-        if (o->oBhvParams2ndByte != WHOMP_BP_SMALL) {
+        if (o->oBehParams2ndByte != 0) {
             cur_obj_hide_if_mario_far_away_y(2000.0f);
         } else {
             cur_obj_hide_if_mario_far_away_y(1000.0f);

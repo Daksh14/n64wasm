@@ -6,7 +6,6 @@
 
 void bhv_decorative_pendulum_init(void) {
     o->oAngleVelRoll = 0x100;
-    bhv_init_room();
 }
 
 /**

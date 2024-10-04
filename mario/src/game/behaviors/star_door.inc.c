@@ -8,21 +8,20 @@ void star_door_update_pos(void) {
 }
 
 void bhv_star_door_loop(void) {
-    UNUSED u8 filler[4];
-    struct Object *sp18 = cur_obj_nearest_object_with_behavior(bhvStarDoor);
+    struct Object *doorObj = cur_obj_nearest_object_with_behavior(bhvStarDoor);
 
     switch (o->oAction) {
-        case 0:
+        case STAR_DOOR_ACT_CLOSED:
             cur_obj_become_tangible();
-            if (o->oInteractStatus & (INT_STATUS_UNK16 | INT_STATUS_UNK17)) {
-                o->oAction = 1;
+            if (o->oInteractStatus & (INT_STATUS_DOOR_PULLED | INT_STATUS_DOOR_PUSHED)) {
+                o->oAction = STAR_DOOR_ACT_OPENING;
             }
-            if (sp18 != NULL && sp18->oAction != 0) {
-                o->oAction = 1;
+            if (doorObj != NULL && doorObj->oAction != STAR_DOOR_ACT_CLOSED) {
+                o->oAction = STAR_DOOR_ACT_OPENING;
             }
             break;
 
-        case 1:
+        case STAR_DOOR_ACT_OPENING:
             if (o->oTimer == 0 && (s16) o->oMoveAngleYaw >= 0) {
                 cur_obj_play_sound_2(SOUND_GENERAL_STAR_DOOR_OPEN);
 #if ENABLE_RUMBLE
@@ -33,17 +32,17 @@ void bhv_star_door_loop(void) {
             o->oLeftVel = -8.0f;
             star_door_update_pos();
             if (o->oTimer > 15) {
-                o->oAction++;
+                o->oAction++; // STAR_DOOR_ACT_OPEN
             }
             break;
 
-        case 2:
+        case STAR_DOOR_ACT_OPEN:
             if (o->oTimer > 30) {
-                o->oAction++;
+                o->oAction++; // STAR_DOOR_ACT_CLOSING
             }
             break;
 
-        case 3:
+        case STAR_DOOR_ACT_CLOSING:
             if (o->oTimer == 0 && (s16) o->oMoveAngleYaw >= 0) {
                 cur_obj_play_sound_2(SOUND_GENERAL_STAR_DOOR_CLOSE);
 #if ENABLE_RUMBLE
@@ -53,13 +52,13 @@ void bhv_star_door_loop(void) {
             o->oLeftVel = 8.0f;
             star_door_update_pos();
             if (o->oTimer > 15) {
-                o->oAction++;
+                o->oAction++; // STAR_DOOR_ACT_RESET
             }
             break;
 
-        case 4:
-            o->oInteractStatus = 0;
-            o->oAction = 0;
+        case STAR_DOOR_ACT_RESET:
+            o->oInteractStatus = INT_STATUS_NONE;
+            o->oAction = STAR_DOOR_ACT_CLOSED;
             break;
     }
 }

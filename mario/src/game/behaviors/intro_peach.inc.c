@@ -7,22 +7,22 @@
 void intro_peach_set_pos_and_opacity(struct Object *obj, f32 targetOpacity, f32 increment) {
     Vec3f newPos;
     s16 focusPitch, focusYaw;
-    f32 UNUSED dist, newOpacity;
+    f32 dist;
 
     vec3f_get_dist_and_angle(gLakituState.pos, gLakituState.focus, &dist, &focusPitch, &focusYaw);
     vec3f_set_dist_and_angle(gLakituState.pos, newPos, obj->oIntroPeachDistToCamera,
                              obj->oIntroPeachPitchFromFocus + focusPitch,
                              obj->oIntroPeachYawFromFocus + focusYaw);
-    vec3f_to_object_pos(obj, newPos);
+    vec3f_copy(&obj->oPosVec, newPos);
 
-    newOpacity = obj->oOpacity;
+    f32 newOpacity = obj->oOpacity;
     camera_approach_f32_symmetric_bool(&newOpacity, targetOpacity, increment);
     obj->oOpacity = newOpacity;
 }
 
 void bhv_intro_peach_loop(void) {
     switch (o->oAction) {
-        case 0:
+        case PEACH_ACT_INIT:
             o->oAction++;
             o->oFaceAnglePitch = 0x400;
             o->oFaceAngleYaw = 0x7500;
@@ -34,7 +34,7 @@ void bhv_intro_peach_loop(void) {
             o->header.gfx.animInfo.animFrame = 100;
             break;
 
-        case 1:
+        case PEACH_ACT_FADE_1:
             intro_peach_set_pos_and_opacity(o, 0.0f, 0.0f);
 
             if (o->oTimer > 20) {
@@ -42,7 +42,7 @@ void bhv_intro_peach_loop(void) {
             }
             break;
 
-        case 2:
+        case PEACH_ACT_UNFADE:
             intro_peach_set_pos_and_opacity(o, 255.0f, 3.0f);
 
             if ((o->oTimer > 100) && (get_dialog_id() == DIALOG_NONE)) {
@@ -50,7 +50,7 @@ void bhv_intro_peach_loop(void) {
             }
             break;
 
-        case 3:
+        case PEACH_ACT_FADE_2:
             intro_peach_set_pos_and_opacity(o, 0.0f, 8.0f);
 
             if (o->oTimer > 60) {

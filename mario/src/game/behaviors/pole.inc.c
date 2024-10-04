@@ -14,11 +14,11 @@
  */
 void bhv_pole_init(void) {
     /**
-     * This is equivalent to using `o->oBhvParams2ndByte` according to
+     * This is equivalent to using `o->oBehParams2ndByte` according to
      * `spawn_objects_from_info`.
      */
-    s32 tenthHitboxHeight = (o->oBhvParams >> 16) & 0xFF;
-    o->hitboxHeight = tenthHitboxHeight * 10;
+    // This treats bparam1 and bparam2 as a single value
+    o->hitboxHeight = GET_BPARAM12(o->oBehParams) * 10;
 }
 
 /**

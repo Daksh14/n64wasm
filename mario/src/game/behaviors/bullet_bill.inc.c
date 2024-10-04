@@ -14,7 +14,7 @@ void bullet_bill_act_0(void) {
     o->oMoveAngleYaw = o->oBulletBillInitialMoveYaw;
     o->oFaceAnglePitch = 0;
     o->oFaceAngleRoll = 0;
-    o->oMoveFlags = 0;
+    o->oMoveFlags = OBJ_MOVE_NONE;
     cur_obj_set_pos_to_home();
     o->oAction = 1;
 }
@@ -78,7 +78,7 @@ void bullet_bill_act_4(void) {
     }
 }
 
-void (*sBulletBillActions[])(void) = {
+ObjActionFunc sBulletBillActions[] = {
     bullet_bill_act_0,
     bullet_bill_act_1,
     bullet_bill_act_2,

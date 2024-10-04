@@ -1,8 +1,6 @@
-#include <PR/ultratypes.h>
-#include <PR/gbi.h>
+#include <ultra64.h>
 
 #include "config.h"
-#include "gfx_dimensions.h"
 #include "game_init.h"
 #include "memory.h"
 #include "print.h"
@@ -24,7 +22,7 @@ struct TextLabel {
  * Stores the text to be rendered on screen
  * and how they are to be rendered.
  */
-FORCE_BSS struct TextLabel *sTextLabels[52];
+struct TextLabel *sTextLabels[52];
 s16 sTextLabelsCount = 0;
 
 /**
@@ -54,7 +52,7 @@ void format_integer(s32 n, s32 base, char *dest, s32 *totalLength, u8 width, s8 
     s8 negative = FALSE;
     char pad;
 
-    if (zeroPad == TRUE) {
+    if (zeroPad) {
         pad = '0';
     } else {
         pad = -1;
@@ -99,10 +97,11 @@ void format_integer(s32 n, s32 base, char *dest, s32 *totalLength, u8 width, s8 
             powBase = int_pow(base, i);
             digit = n / powBase;
 
+            // FIXME: Why doesn't [] match?
             if (digit < 10) {
-                *(dest + len + (numDigits - 1) - i) = digit + '0';
+                *(dest + len + numDigits - 1 - i) = digit + '0';
             } else {
-                *(dest + len + (numDigits - 1) - i) = digit + '7';
+                *(dest + len + numDigits - 1 - i) = digit + '7';
             }
 
             n -= digit * powBase;
@@ -134,7 +133,10 @@ void parse_width_field(const char *str, s32 *srcIndex, u8 *width, s8 *zeroPad) {
     }
 
     // Read width digits up until the 'd' or 'x' format specifier.
-    while (str[*srcIndex] != 'd' && str[*srcIndex] != 'x') {
+    while (str[*srcIndex] != 'b'
+        && str[*srcIndex] != 'o'
+        && str[*srcIndex] != 'd'
+        && str[*srcIndex] != 'x') {
         digits[digitsLen] = str[*srcIndex] - '0';
 
         if (digits[digitsLen] < 0 || digits[digitsLen] >= 10) { // not a valid digit
@@ -153,7 +155,7 @@ void parse_width_field(const char *str, s32 *srcIndex, u8 *width, s8 *zeroPad) {
 
     // Sum the digits to calculate the total width.
     for (i = 0; i < digitsLen - 1; i++) {
-        *width = *width + ((digitsLen - i - 1) * 10) * digits[i];
+        *width = *width + digits[i] * ((digitsLen - i - 1) * 10);
     }
 
     *width = *width + digits[digitsLen - 1];
@@ -185,21 +187,22 @@ void print_text_fmt_int(s32 x, s32 y, const char *str, s32 n) {
 
     c = str[srcIndex];
 
-    while (c != '\0') {
+    while (c != 0) {
         if (c == '%') {
             srcIndex++;
 
             parse_width_field(str, &srcIndex, &width, &zeroPad);
 
-            if (str[srcIndex] != 'd' && str[srcIndex] != 'x') {
+            if (str[srcIndex] != 'b'
+                && str[srcIndex] != 'o'
+                && str[srcIndex] != 'd'
+                && str[srcIndex] != 'x') {
                 break;
             }
-            if (str[srcIndex] == 'd') {
-                base = 10;
-            }
-            if (str[srcIndex] == 'x') {
-                base = 16;
-            }
+            if (str[srcIndex] == 'b') base =  2;
+            if (str[srcIndex] == 'o') base =  8;
+            if (str[srcIndex] == 'd') base = 10;
+            if (str[srcIndex] == 'x') base = 16;
 
             srcIndex++;
 
@@ -236,7 +239,7 @@ void print_text(s32 x, s32 y, const char *str) {
     c = str[srcIndex];
 
     // Set the array with the text to print while finding length.
-    while (c != '\0') {
+    while (c != 0) {
         sTextLabels[sTextLabelsCount]->buffer[length] = c;
         length++;
         srcIndex++;
@@ -252,13 +255,8 @@ void print_text(s32 x, s32 y, const char *str) {
  */
 void print_text_centered(s32 x, s32 y, const char *str) {
     char c = 0;
-    UNUSED s8 unused1 = 0;
-    UNUSED s32 unused2 = 0;
     s32 length = 0;
     s32 srcIndex = 0;
-#ifdef VERSION_CN
-    s32 width = 0;
-#endif
 
     // Don't continue if there is no memory to do so.
     if ((sTextLabels[sTextLabelsCount] = mem_pool_alloc(gEffectsMemoryPool,
@@ -269,14 +267,7 @@ void print_text_centered(s32 x, s32 y, const char *str) {
     c = str[srcIndex];
 
     // Set the array with the text to print while finding length.
-    while (c != '\0') {
-#ifdef VERSION_CN
-        if ((u8) c == 0xB0 || (u8) c == 0xC0) {
-            width = 16;
-        } else {
-            width = 12;
-        }
-#endif
+    while (c != 0) {
         sTextLabels[sTextLabelsCount]->buffer[length] = c;
         length++;
         srcIndex++;
@@ -284,11 +275,7 @@ void print_text_centered(s32 x, s32 y, const char *str) {
     }
 
     sTextLabels[sTextLabelsCount]->length = length;
-#ifdef VERSION_CN
-    sTextLabels[sTextLabelsCount]->x = x - width * length / 2;
-#else
-    sTextLabels[sTextLabelsCount]->x = x - 12 * length / 2;
-#endif
+    sTextLabels[sTextLabelsCount]->x = x - length * 6; // * 12 / 2;
     sTextLabels[sTextLabelsCount]->y = y;
     sTextLabelsCount++;
 }
@@ -296,7 +283,7 @@ void print_text_centered(s32 x, s32 y, const char *str) {
 /**
  * Converts a char into the proper colorful glyph for the char.
  */
-s8 char_to_glyph_index(char c) {
+s32 char_to_glyph_index(char c) {
     if (c >= 'A' && c <= 'Z') {
         return c - 55;
     }
@@ -329,23 +316,35 @@ s8 char_to_glyph_index(char c) {
         return GLYPH_AMPERSAND; // &, JP only
     }
 
-    if (c == '%') {
+    if (c == '/') {
         return GLYPH_PERCENT; // %, JP only
+    }
+
+    if (c == '-') {
+        return GLYPH_MINUS; // minus
     }
 
     if (c == '*') {
         return GLYPH_MULTIPLY; // x
     }
 
-    if (c == '+') {
+    if (c == '$') {
         return GLYPH_COIN; // coin
+    }
+
+    if (c == '@') {
+        return GLYPH_RED_COIN; // red coin
+    }
+
+    if (c == '+') {
+        return GLYPH_SILVER_COIN; // silver coin
     }
 
     if (c == ',') {
         return GLYPH_MARIO_HEAD; // Imagine I drew Mario's head
     }
 
-    if (c == '-') {
+    if (c == '^') {
         return GLYPH_STAR; // star
     }
 
@@ -353,7 +352,7 @@ s8 char_to_glyph_index(char c) {
         return GLYPH_PERIOD; // large shaded dot, JP only
     }
 
-    if (c == '/') {
+    if (c == '|') {
         return GLYPH_BETA_KEY; // beta key, JP only. Reused for Ü in EU.
     }
 
@@ -364,14 +363,10 @@ s8 char_to_glyph_index(char c) {
  * Adds an individual glyph to be rendered.
  */
 void add_glyph_texture(s8 glyphIndex) {
-    const u8 *const *glyphs = segmented_to_virtual(main_hud_lut);
+    const Texture *const *glyphs = segmented_to_virtual(main_hud_lut);
 
     gDPPipeSync(gDisplayListHead++);
-#ifdef VERSION_CN
-    gDPSetTextureImage(gDisplayListHead++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 1, glyphs[(u8) glyphIndex]);
-#else
     gDPSetTextureImage(gDisplayListHead++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 1, glyphs[glyphIndex]);
-#endif
     gSPDisplayList(gDisplayListHead++, dl_hud_img_load_tex_block);
 }
 
@@ -401,13 +396,8 @@ void clip_to_bounds(s32 *x, s32 *y) {
 /**
  * Renders the glyph that's set at the given position.
  */
-#ifdef VERSION_CN
-void render_textrect(s32 x, s32 y, s32 pos, s32 width) {
-    s32 rectBaseX = x + pos * width;
-#else
 void render_textrect(s32 x, s32 y, s32 pos) {
     s32 rectBaseX = x + pos * 12;
-#endif
     s32 rectBaseY = 224 - y;
     s32 rectX;
     s32 rectY;
@@ -450,19 +440,7 @@ void render_text_labels(void) {
 
     for (i = 0; i < sTextLabelsCount; i++) {
         for (j = 0; j < sTextLabels[i]->length; j++) {
-#ifdef VERSION_CN
-            if ((u8) sTextLabels[i]->buffer[j] < 0xA0) {
-                glyphIndex = char_to_glyph_index(sTextLabels[i]->buffer[j]);
-            } else if ((u8) sTextLabels[i]->buffer[j] == 0xB0) {
-                glyphIndex = 0xB0;
-            } else if ((u8) sTextLabels[i]->buffer[j] == 0xC0) {
-                glyphIndex = 0xC0;
-            } else {
-                glyphIndex = GLYPH_SPACE;
-            }
-#else
             glyphIndex = char_to_glyph_index(sTextLabels[i]->buffer[j]);
-#endif
 
             if (glyphIndex != GLYPH_SPACE) {
 #ifdef VERSION_EU
@@ -477,37 +455,6 @@ void render_text_labels(void) {
                 } else {
                     add_glyph_texture(glyphIndex);
                     render_textrect(sTextLabels[i]->x, sTextLabels[i]->y, j);
-                }
-#elif defined(VERSION_CN)
-                if ((u8) glyphIndex == 0xB0) {
-                    add_glyph_texture(0x92);
-                    render_textrect(45, 50, 0, 16);
-                    add_glyph_texture(0x93);
-                    render_textrect(45, 50, 1, 16);
-                    add_glyph_texture(0x94);
-                    render_textrect(45, 34, 0, 16);
-                    add_glyph_texture(0x95);
-                    render_textrect(45, 34, 1, 16);
-                } else if ((u8) glyphIndex == 0xC0) {
-                    add_glyph_texture(0xAE);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 193, 0, 16);
-                    add_glyph_texture(0xAF);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 193, 1, 16);
-                    add_glyph_texture(0xB0);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 177, 0, 16);
-                    add_glyph_texture(0xB1);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 177, 1, 16);
-                    add_glyph_texture(0xB2);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 193, 2, 16);
-                    add_glyph_texture(0xB3);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 193, 3, 16);
-                    add_glyph_texture(0xB4);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 177, 2, 16);
-                    add_glyph_texture(0xB5);
-                    render_textrect(GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(150), 177, 3, 16);
-                } else {
-                    add_glyph_texture(glyphIndex);
-                    render_textrect(sTextLabels[i]->x, sTextLabels[i]->y, j, 12);
                 }
 #else
                 add_glyph_texture(glyphIndex);

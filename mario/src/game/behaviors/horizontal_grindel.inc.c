@@ -29,7 +29,7 @@ void bhv_horizontal_grindel_update(void) {
                     o->oForwardVel = 11.0f;
                     o->oVelY = 70.0f;
                     o->oGravity = -4.0f;
-                    o->oMoveFlags = 0;
+                    o->oMoveFlags = OBJ_MOVE_NONE;
                 }
             }
         } else {

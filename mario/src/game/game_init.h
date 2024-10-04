@@ -8,8 +8,10 @@
 
 #include "types.h"
 #include "memory.h"
+#include "config.h"
 
-#define GFX_POOL_SIZE 6400 // Size of how large the master display list (gDisplayListHead) can be
+#define MARIO_ANIMS_POOL_SIZE 0x4000
+#define DEMO_INPUTS_POOL_SIZE 0x800
 
 struct GfxPool {
     Gfx buffer[GFX_POOL_SIZE];
@@ -23,9 +25,14 @@ struct DemoInput {
     u8 buttonMask;
 };
 
-extern struct Controller gControllers[3];
-extern OSContStatus gControllerStatuses[4];
-extern OSContPad gControllerPads[4];
+enum ZBmodes {
+    KEEP_ZBUFFER = 0,
+    CLEAR_ZBUFFER = 1,
+};
+
+extern struct Controller gControllers[MAXCONTROLLERS];
+extern OSContStatus gControllerStatuses[MAXCONTROLLERS];
+extern OSContPadEx gControllerPads[MAXCONTROLLERS];
 extern OSMesgQueue gGameVblankQueue;
 extern OSMesgQueue gGfxVblankQueue;
 extern OSMesg gGameMesgBuf[1];
@@ -40,12 +47,24 @@ extern Gfx *gDisplayListHead;
 extern u8 *gGfxPoolEnd;
 extern struct GfxPool *gGfxPool;
 extern u8 gControllerBits;
+extern u8 gBorderHeight;
+#ifdef VANILLA_STYLE_CUSTOM_DEBUG
+extern u8 gCustomDebugMode;
+#endif
+extern u8 *gAreaSkyboxStart[AREA_COUNT];
+extern u8 *gAreaSkyboxEnd[AREA_COUNT];
+#ifdef EEP
 extern s8 gEepromProbe;
+#endif
+#ifdef SRAM
+extern s8 gSramProbe;
+#endif
 
 extern void (*gGoddardVblankCallback)(void);
-extern struct Controller *gPlayer1Controller;
-extern struct Controller *gPlayer2Controller;
-extern struct Controller *gPlayer3Controller;
+extern struct Controller* const gPlayer1Controller;
+extern struct Controller* const gPlayer2Controller;
+extern struct Controller* const gPlayer3Controller;
+extern struct Controller* const gPlayer4Controller;
 extern struct DemoInput *gCurrDemoInput;
 extern u16 gDemoInputListID;
 extern struct DemoInput gRecordedDemoInput;
@@ -66,7 +85,7 @@ void thread5_game_loop(UNUSED void *arg);
 void clear_framebuffer(s32 color);
 void clear_viewport(Vp *viewport, s32 color);
 void make_viewport_clip_rect(Vp *viewport);
-void init_rcp(void);
+void init_rcp(s32 resetZB);
 void end_master_display_list(void);
 void render_init(void);
 void select_gfx_pool(void);

@@ -3,14 +3,13 @@
 s32 arc_to_goal_pos(Vec3f a0, Vec3f a1, f32 yVel, f32 gravity) {
     f32 dx = a0[0] - a1[0];
     f32 dz = a0[2] - a1[2];
-    f32 planarDist = sqrtf(dx * dx + dz * dz);
-    s32 time;
+    f32 planarDist = sqrtf(sqr(dx) + sqr(dz));
 
     o->oMoveAngleYaw = atan2s(dz, dx);
     o->oVelY = yVel;
     o->oGravity = gravity;
 
-    time = -2.0f / o->oGravity * yVel - 1.0f;
+    s32 time = -2.0f / o->oGravity * yVel - 1.0f;
 
     o->oForwardVel = planarDist / time;
 
@@ -24,11 +23,6 @@ void grand_star_zero_velocity(void) {
 }
 
 void bhv_grand_star_loop(void) {
-    UNUSED u8 filler[4];
-    Vec3f sp28;
-
-    sp28[0] = sp28[1] = sp28[2] = 0.0f;
-
     if (o->oAction == 0) {
         if (o->oTimer == 0) {
             obj_set_angle(o, 0, 0, 0);
@@ -47,7 +41,7 @@ void bhv_grand_star_loop(void) {
             cur_obj_play_sound_2(SOUND_GENERAL_GRAND_STAR);
 
             cutscene_object(CUTSCENE_STAR_SPAWN, o);
-            o->oGrandStarUnk108 = arc_to_goal_pos(sp28, &o->oPosX, 80.0f, -2.0f);
+            o->oGrandStarArcTime = arc_to_goal_pos(gVec3fZero, &o->oPosVec, 80.0f, -2.0f);
         }
 
         cur_obj_move_using_fvel_and_gravity();
@@ -67,7 +61,7 @@ void bhv_grand_star_loop(void) {
             gObjCutsceneDone = TRUE;
             set_mario_npc_dialog(MARIO_DIALOG_STOP);
             o->oAction++;
-            o->oInteractStatus = 0;
+            o->oInteractStatus = INT_STATUS_NONE;
 
             cur_obj_play_sound_2(SOUND_GENERAL_GRAND_STAR_JUMP);
         }
@@ -78,7 +72,7 @@ void bhv_grand_star_loop(void) {
 
         if (o->oInteractStatus & INT_STATUS_INTERACTED) {
             obj_mark_for_deletion(o);
-            o->oInteractStatus = 0;
+            o->oInteractStatus = INT_STATUS_NONE;
         }
     }
 

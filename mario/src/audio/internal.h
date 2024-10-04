@@ -5,68 +5,72 @@
 
 #include "types.h"
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
 #define SEQUENCE_PLAYERS 4
-#define SEQUENCE_CHANNELS 48
-#define SEQUENCE_LAYERS 64
 #else
 #define SEQUENCE_PLAYERS 3
-#define SEQUENCE_CHANNELS 32
-#ifdef VERSION_JP
-#define SEQUENCE_LAYERS 48
-#else
-#define SEQUENCE_LAYERS 52
-#endif
 #endif
 
 #define LAYERS_MAX       4
 #define CHANNELS_MAX     16
 
+#ifdef EXPAND_AUDIO_HEAP // Not technically on the heap but it's memory nonetheless...
+#define SEQUENCE_CHANNELS (SEQUENCE_PLAYERS * CHANNELS_MAX)
+#define SEQUENCE_LAYERS ((SEQUENCE_CHANNELS * LAYERS_MAX) / 2) // This should be more than plenty in nearly all circumstances.
+#else // EXPAND_AUDIO_HEAP
+#if defined(VERSION_EU) || defined(VERSION_SH)
+#define SEQUENCE_CHANNELS 48
+#define SEQUENCE_LAYERS 64
+#else
+#define SEQUENCE_CHANNELS 32
+#define SEQUENCE_LAYERS 52
+#endif
+#endif // EXPAND_AUDIO_HEAP
+
+#define VIBRATO_DISABLED_VALUE (0xFF * 8)
+
 #define NO_LAYER ((struct SequenceChannelLayer *)(-1))
 
-#define MUTE_BEHAVIOR_STOP_SCRIPT 0x80 // stop processing sequence/channel scripts
-#define MUTE_BEHAVIOR_STOP_NOTES 0x40  // prevent further notes from playing
-#define MUTE_BEHAVIOR_SOFTEN 0x20      // lower volume, by default to half
+enum MuteBehaviors {
+    MUTE_BEHAVIOR_STOP_SCRIPT = (1 << 7), // 0x80 // stop processing sequence/channel scripts
+    MUTE_BEHAVIOR_STOP_NOTES  = (1 << 6), // 0x40 // prevent further notes from playing
+    MUTE_BEHAVIOR_SOFTEN      = (1 << 5), // 0x20 // lower volume, by default to half
+};
 
-#define SEQUENCE_PLAYER_STATE_0 0
-#define SEQUENCE_PLAYER_STATE_FADE_OUT 1
-#define SEQUENCE_PLAYER_STATE_2 2
-#define SEQUENCE_PLAYER_STATE_3 3
-#define SEQUENCE_PLAYER_STATE_4 4
+enum SequencePlayerStates {
+    SEQUENCE_PLAYER_STATE_0,
+    SEQUENCE_PLAYER_STATE_FADE_OUT,
+    SEQUENCE_PLAYER_STATE_2,
+    SEQUENCE_PLAYER_STATE_3,
+    SEQUENCE_PLAYER_STATE_4
+};
 
-#define NOTE_PRIORITY_DISABLED 0
-#define NOTE_PRIORITY_STOPPING 1
-#define NOTE_PRIORITY_MIN 2
-#define NOTE_PRIORITY_DEFAULT 3
+enum NotePriority {
+    NOTE_PRIORITY_DISABLED,
+    NOTE_PRIORITY_STOPPING,
+    NOTE_PRIORITY_MIN,
+    NOTE_PRIORITY_DEFAULT
+};
 
 #define TATUMS_PER_BEAT 48
 
 // abi.h contains more details about the ADPCM and S8 codecs, "skip" skips codec processing
-#define CODEC_ADPCM 0
-#define CODEC_S8 1
-#define CODEC_SKIP 2
+enum Codecs {
+    CODEC_ADPCM,
+    CODEC_S8,
+    CODEC_SKIP
+};
 
-#ifdef VERSION_JP
-#define TEMPO_SCALE 1
-#else
 #define TEMPO_SCALE TATUMS_PER_BEAT
-#endif
-
-// TODO: US_FLOAT should probably be renamed to JP_DOUBLE since eu seems to use floats too
-#ifdef VERSION_JP
-#define US_FLOAT(x) x
-#else
-#define US_FLOAT(x) x ## f
-#endif
 
 // Convert u8 or u16 to f32. On JP, this uses a u32->f32 conversion,
 // resulting in more bloated codegen, while on US it goes through s32.
 // Since u8 and u16 fit losslessly in both, behavior is the same.
-#ifdef VERSION_JP
-#define FLOAT_CAST(x) (f32) (x)
-#else
 #define FLOAT_CAST(x) (f32) (s32) (x)
-#endif
+
+#if defined(ISVPRINT) || defined(UNF)
+#define stubbed_printf osSyncPrintf
+#else
 
 // No-op printf macro which leaves string literals in rodata in IDO. IDO
 // doesn't support variadic macros, so instead we let the parameter list
@@ -78,12 +82,22 @@
 #else
 #define stubbed_printf(...)
 #endif
+#endif
+
+#include "game/puppyprint.h"
 
 #ifdef VERSION_EU
+/*#ifdef PUPPYPRINT_DEBUG
+#define eu_stubbed_printf_0(msg) append_puppyprint_log(msg)
+#define eu_stubbed_printf_1(msg, a) append_puppyprint_log(msg, a)
+#define eu_stubbed_printf_2(msg, a, b) append_puppyprint_log(msg, a, b)
+#define eu_stubbed_printf_3(msg, a, b, c) append_puppyprint_log(msg, a, b, c)
+#else*/
 #define eu_stubbed_printf_0(msg) stubbed_printf(msg)
 #define eu_stubbed_printf_1(msg, a) stubbed_printf(msg, a)
 #define eu_stubbed_printf_2(msg, a, b) stubbed_printf(msg, a, b)
 #define eu_stubbed_printf_3(msg, a, b, c) stubbed_printf(msg, a, b, c)
+//#endif
 #else
 #define eu_stubbed_printf_0(msg)
 #define eu_stubbed_printf_1(msg, a)
@@ -120,14 +134,14 @@ struct NotePool {
 struct VibratoState {
     /*0x00, 0x00*/ struct SequenceChannel *seqChannel;
     /*0x04, 0x04*/ u32 time;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*    , 0x08*/ s16 *curve;
     /*    , 0x0C*/ f32 extent;
     /*    , 0x10*/ f32 rate;
     /*    , 0x14*/ u8 active;
 #else
     /*0x08,     */ s8 *curve;
-    /*0x0C,     */ u8 active;
+    /*0x0C,     */ u8 activeFlags;
     /*0x0E,     */ u16 rate;
     /*0x10,     */ u16 extent;
 #endif
@@ -167,7 +181,7 @@ struct AdpcmBook {
 };
 
 struct AudioBankSample {
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /* 0x00 */ u32 codec : 4;
     /* 0x00 */ u32 medium : 2;
     /* 0x00 */ u32 bit1 : 1;
@@ -180,7 +194,7 @@ struct AudioBankSample {
     u8 *sampleAddr;
     struct AdpcmLoop *loop;
     struct AdpcmBook *book;
-#if !defined(VERSION_SH) && !defined(VERSION_CN)
+#ifndef VERSION_SH
     u32 sampleSize; // never read. either 0 or 1 mod 9, depending on padding
 #endif
 };
@@ -215,12 +229,12 @@ struct AudioBank {
 }; // dynamic size
 
 struct CtlEntry {
-#if !defined(VERSION_SH) && !defined(VERSION_CN)
+#ifndef VERSION_SH
     u8 unused;
 #endif
     u8 numInstruments;
     u8 numDrums;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     u8 bankId1;
     u8 bankId2;
 #endif
@@ -238,7 +252,7 @@ struct M64ScriptState {
 // Also known as a Group, according to debug strings.
 struct SequencePlayer {
     /*US/JP, EU,    SH   */
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*0x000, 0x000, 0x000*/ u8 enabled : 1;
 #else
     /*0x000, 0x000*/ volatile u8 enabled : 1;
@@ -247,10 +261,10 @@ struct SequencePlayer {
     /*0x000, 0x000*/ u8 muted : 1;
     /*0x000, 0x000*/ u8 seqDmaInProgress : 1;
     /*0x000, 0x000*/ u8 bankDmaInProgress : 1;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*       0x000*/ u8 recalculateVolume : 1;
 #endif
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*              0x000*/ u8 unkSh: 1;
 #endif
 #if defined(VERSION_JP) || defined(VERSION_US)
@@ -267,7 +281,7 @@ struct SequencePlayer {
     /*0x008, ?????*/ u8 loadingBankNumInstruments;
     /*0x009, ?????*/ u8 loadingBankNumDrums;
 #endif
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*     , 0x007, 0x007*/ s8 seqVariationEu[1];
 #endif
     /*0x00A, 0x008*/ u16 tempo; // beats per minute in JP, tatums per minute in US/EU
@@ -275,12 +289,12 @@ struct SequencePlayer {
 #if defined(VERSION_JP) || defined(VERSION_US)
     /*0x00E, 0x010*/ u16 fadeRemainingFrames;
 #endif
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*              0x00C*/ s16 tempoAdd;
 #endif
     /*0x010, 0x00C, 0x00E*/ s16 transposition;
     /*0x012, 0x00E, 0x010*/ u16 delay;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*0x00E, 0x010, 0x012*/ u16 fadeRemainingFrames;
     /*     , 0x012, 0x014*/ u16 fadeTimerUnkEu;
 #endif
@@ -289,11 +303,11 @@ struct SequencePlayer {
     /*0x01C, 0x01C*/ f32 fadeVelocity; // set to 0.0f
     /*0x020, 0x020, 0x024*/ f32 volume; // set to 0.0f
     /*0x024, 0x024*/ f32 muteVolumeScale; // set to 0.5f
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*     , 0x028, 0x02C*/ f32 fadeVolumeScale;
     /*     , 0x02C*/ f32 appliedFadeVolume;
 #else
-    /*            */ u8 pad2[4];
+    /*0x028,      */ f32 volumeDefault;
 #endif
     /*0x02C, 0x030, 0x034*/ struct SequenceChannel *channels[CHANNELS_MAX];
     /*0x06C, 0x070*/ struct M64ScriptState scriptState;
@@ -316,7 +330,7 @@ struct SequencePlayer {
 
 struct AdsrSettings {
     u8 releaseRate;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     u8 sustain;
 #else
     u16 sustain; // sustain level, 2^16 = max
@@ -334,7 +348,7 @@ struct AdsrState {
 #endif
     /*0x08, 0x02*/ s16 envIndex;
     /*0x0A, 0x04*/ s16 delay;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*    , 0x08*/ f32 sustain;
     /*    , 0x0C*/ f32 velocity;
     /*    , 0x10*/ f32 fadeOutVel;
@@ -378,13 +392,13 @@ struct ReverbInfo {
 
 struct NoteAttributes {
     u8 reverbVol;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     u8 synthesisVolume; // UQ4.4, although 0 <= x < 1 is rounded up to 1
 #endif
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     u8 pan;
 #endif
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     union ReverbBits reverbBits;
 #endif
     f32 freqScale;
@@ -392,7 +406,7 @@ struct NoteAttributes {
 #if defined(VERSION_JP) || defined(VERSION_US)
     f32 pan;
 #endif
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     s16 *filter;
 #endif
 }; // size = 0x10
@@ -406,10 +420,14 @@ struct SequenceChannel {
     /*0x00, 0x00*/ u8 stopScript : 1;
     /*0x00, 0x00*/ u8 stopSomething2 : 1; // sets SequenceChannelLayer.stopSomething
     /*0x00, 0x00*/ u8 hasInstrument : 1;
+#ifdef ENABLE_STEREO_HEADSET_EFFECTS
     /*0x00, 0x00*/ u8 stereoHeadsetEffects : 1;
+#else
+    /*0x00, 0x00*/ u8 paddingBit : 1;
+#endif
     /*0x00, ????*/ u8 largeNotes : 1; // notes specify duration and velocity
     /*0x00, ????*/ u8 unused : 1; // never read, set to 0
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*    , 0x01*/ union {
         struct {
             u8 freqScale : 1;
@@ -423,11 +441,11 @@ struct SequenceChannel {
     /*0x02, 0x03, 0x03*/ u8 muteBehavior;
     /*0x03, 0x04, 0x04*/ u8 reverbVol; // until EU: Q1.7, after EU: UQ0.8
     /*0x04, ????*/ u8 notePriority; // 0-3
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
                    u8 unkSH06; // some priority
 #endif
     /*0x05, 0x06*/ u8 bankId;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*    , 0x07*/ u8 reverbIndex;
     /*    , 0x08, 0x09*/ u8 bookOffset;
     /*    , 0x09*/ u8 newPan;
@@ -435,7 +453,7 @@ struct SequenceChannel {
 #else
     /*0x06,     */ u8 updatesPerFrameUnused;
 #endif
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*            0x0C*/ u8 synthesisVolume; // UQ4.4, although 0 <= x < 1 is rounded up to 1
 #endif
     /*0x08, 0x0C, 0x0E*/ u16 vibratoRateStart; // initially 0x800
@@ -465,14 +483,14 @@ struct SequenceChannel {
     /*0x3C, 0x40*/ struct Instrument *instrument;
     /*0x40, 0x44*/ struct SequencePlayer *seqPlayer;
     /*0x44, 0x48*/ struct SequenceChannelLayer *layers[LAYERS_MAX];
-#if !defined(VERSION_SH) && !defined(VERSION_CN)
+#ifndef VERSION_SH
     /*0x54, 0x58      */ s8 soundScriptIO[8]; // bridge between sound script and audio lib. For player 2,
     // [0] contains enabled, [4] contains sound ID, [5] contains reverb adjustment
 #endif
     /*0x5C, 0x60*/ struct M64ScriptState scriptState;
     /*0x78, 0x7C*/ struct AdsrSettings adsr;
     /*0x80, 0x84*/ struct NotePool notePool;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*            0xC0*/ s8 soundScriptIO[8]; // bridge between sound script and audio lib. For player 2,
     // [0] contains enabled, [4] contains sound ID, [5] contains reverb adjustment
     /*            0xC8*/ u16 unkC8;
@@ -487,11 +505,11 @@ struct SequenceChannelLayer {
     /*0x00, 0x00*/ u8 finished : 1;
     /*0x00, 0x00*/ u8 stopSomething : 1; // ?
     /*0x00, 0x00*/ u8 continuousNotes : 1; // keep the same note for consecutive notes with the same sound
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*    , 0x00*/ u8 unusedEu0b8 : 1;
     /*    , 0x00*/ u8 notePropertiesNeedInit : 1;
     /*    , 0x00*/ u8 ignoreDrumPan : 1;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*    ,     , 0x01 */ union ReverbBits reverbBits;
 #endif
     /*    , 0x01, 0x02*/ u8 instOrWave;
@@ -499,7 +517,7 @@ struct SequenceChannelLayer {
     /*0x01, 0x02, 0x03*/ u8 status; // 0x03 in SH
     /*0x02, 0x03*/ u8 noteDuration; // set to 0x80
     /*0x03, 0x04*/ u8 portamentoTargetNote;
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
     /*    , 0x05*/ u8 pan; // 0..128
     /*    , 0x06, 0x07*/ u8 notePan;
 #endif
@@ -510,7 +528,7 @@ struct SequenceChannelLayer {
     // (m64 instruction encoding only allows referring to the limited range
     // 0..0x3f; this makes 0x40..0x7f accessible as well)
     /*0x20, 0x24, 0x24*/ f32 freqScale;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*            0x28*/ f32 freqScaleMultiplier;
 #endif
     /*0x24, 0x28, 0x2C*/ f32 velocitySquare;
@@ -538,13 +556,13 @@ struct SequenceChannelLayer {
 #endif
 }; // size = 0x80
 
-#if defined(VERSION_EU) || defined(VERSION_SH) || defined(VERSION_CN)
+#if defined(VERSION_EU) || defined(VERSION_SH)
 struct NoteSynthesisState {
     /*0x00*/ u8 restart;
     /*0x01*/ u8 sampleDmaIndex;
     /*0x02*/ u8 prevHeadsetPanRight;
     /*0x03*/ u8 prevHeadsetPanLeft;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*      0x04*/ u8 reverbVol;
     /*      0x05*/ u8 unk5;
 #endif
@@ -559,7 +577,7 @@ struct NotePlaybackState {
     /*0x04, 0x00, 0x00*/ u8 priority;
     /*      0x01, 0x01*/ u8 waveId;
     /*      0x02, 0x02*/ u8 sampleCountIndex;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*            0x03*/ u8 bankId;
     /*            0x04*/ u8 unkSH34;
 #endif
@@ -575,18 +593,18 @@ struct NotePlaybackState {
     /*0x84, 0x5C,     */ struct VibratoState vibratoState;
 };
 struct NoteSubEu {
-    /*0x00*/ volatile u8 enabled : 1;
-    /*0x00*/ u8 needsInit : 1;
-    /*0x00*/ u8 finished : 1;
-    /*0x00*/ u8 envMixerNeedsInit : 1;
-    /*0x00*/ u8 stereoStrongRight : 1;
-    /*0x00*/ u8 stereoStrongLeft : 1;
-    /*0x00*/ u8 stereoHeadsetEffects : 1;
+    /*0x00*/ volatile u8 enabled      : 1;
+    /*0x00*/ u8 needsInit             : 1;
+    /*0x00*/ u8 finished              : 1;
+    /*0x00*/ u8 envMixerNeedsInit     : 1;
+    /*0x00*/ u8 stereoStrongRight     : 1;
+    /*0x00*/ u8 stereoStrongLeft      : 1;
+    /*0x00*/ u8 stereoHeadsetEffects  : 1;
     /*0x00*/ u8 usesHeadsetPanEffects : 1;
-    /*0x01*/ u8 reverbIndex : 3;
-    /*0x01*/ u8 bookOffset : 3;
-    /*0x01*/ u8 isSyntheticWave : 1;
-    /*0x01*/ u8 hasTwoAdpcmParts : 1;
+    /*0x01*/ u8 reverbIndex           : 3;
+    /*0x01*/ u8 bookOffset            : 3;
+    /*0x01*/ u8 isSyntheticWave       : 1;
+    /*0x01*/ u8 hasTwoAdpcmParts      : 1;
 #ifdef VERSION_EU
     /*0x02*/ u8 bankId;
 #else
@@ -594,15 +612,15 @@ struct NoteSubEu {
 #endif
     /*0x03*/ u8 headsetPanRight;
     /*0x04*/ u8 headsetPanLeft;
-    /*0x05*/ u8 reverbVol; // UQ0.7 (EU Q1.7)
-    /*0x06*/ u16 targetVolLeft; // UQ0.12 (EU UQ0.10)
+    /*0x05*/ u8 reverbVol;       // UQ0.7  (EU Q1.7)
+    /*0x06*/ u16 targetVolLeft;  // UQ0.12 (EU UQ0.10)
     /*0x08*/ u16 targetVolRight; // UQ0.12 (EU UQ0.10)
     /*0x0A*/ u16 resamplingRateFixedPoint; // stored as signed but loaded as u16
     /*0x0C*/ union {
         s16 *samples;
         struct AudioBankSound *audioBankSound;
     } sound;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*0x10*/ s16 *filter;
 #endif
 };
@@ -622,7 +640,7 @@ struct Note {
     /*0x04, 0x30, 0x30*/ u8 priority;
     /*      0x31, 0x31*/ u8 waveId;
     /*      0x32, 0x32*/ u8 sampleCountIndex;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*            0x33*/ u8 bankId;
     /*            0x34*/ u8 unkSH34;
 #endif
@@ -648,58 +666,60 @@ struct vNote {
 }; // size = 0xC0
 struct Note {
     /* U/J, EU  */
-    /*0x00*/ u8 enabled : 1;
-    /*0x00*/ u8 needsInit : 1;
-    /*0x00*/ u8 restart : 1;
-    /*0x00*/ u8 finished : 1;
-    /*0x00*/ u8 envMixerNeedsInit : 1;
-    /*0x00*/ u8 stereoStrongRight : 1;
-    /*0x00*/ u8 stereoStrongLeft : 1;
-    /*0x00*/ u8 stereoHeadsetEffects : 1;
-    /*0x01*/ u8 usesHeadsetPanEffects;
-    /*0x02*/ u8 unk2;
-    /*0x03*/ u8 sampleDmaIndex;
-    /*0x04, 0x30*/ u8 priority;
-    /*0x05*/ u8 sampleCount; // 0, 8, 16, 32 or 64
-    /*0x06*/ u8 instOrWave;
-    /*0x07*/ u8 bankId; // in NoteSubEu on EU
+    /*0x00*/ u8 enabled               : 1;
+    /*0x00*/ u8 needsInit             : 1;
+    /*0x00*/ u8 restart               : 1;
+    /*0x00*/ u8 finished              : 1;
+    /*0x00*/ u8 envMixerNeedsInit     : 1;
+    /*0x00*/ u8 initFullVelocity      : 1;
+#ifdef ENABLE_STEREO_HEADSET_EFFECTS
+    /*0x00*/ u8 stereoHeadsetEffects  : 1;
+    /*0x00*/ u8 usesHeadsetPanEffects : 1;
+    /*0x01*/ u8 stereoStrongRight     : 1;
+    /*0x01*/ u8 stereoStrongLeft      : 1;
+#else
+    /*    */ u8 pad0[0x01];
+#endif
+    /*0x02*/ u8 sampleDmaIndex;
+    /*0x03*/ u8 priority;
+    /*0x04*/ u8 sampleCount; // 0, 8, 16, 32 or 64
+    /*0x05*/ u8 instOrWave;
+    /*0x06*/ u8 bankId; // in NoteSubEu on EU
+    /*0x07*/ u8 reverbVol; // Q1.7
     /*0x08*/ s16 adsrVolScale;
-    /*    */ u8 pad1[2];
-    /*0x0C, 0xB3*/ u16 headsetPanRight;
-    /*0x0E, 0xB4*/ u16 headsetPanLeft;
-    /*0x10*/ u16 prevHeadsetPanRight;
-    /*0x12*/ u16 prevHeadsetPanLeft;
-    /*0x14*/ s32 samplePosInt;
-    /*0x18, 0x38*/ f32 portamentoFreqScale;
-    /*0x1C, 0x3C*/ f32 vibratoFreqScale;
-    /*0x20*/ u16 samplePosFrac;
-    /*0x24*/ struct AudioBankSound *sound;
-    /*0x28, 0x40*/ struct SequenceChannelLayer *prevParentLayer;
-    /*0x2C, 0x44*/ struct SequenceChannelLayer *parentLayer;
-    /*0x30, 0x48*/ struct SequenceChannelLayer *wantedParentLayer;
-    /*0x34*/ struct NoteSynthesisBuffers *synthesisBuffers;
-    /*0x38*/ f32 frequency;
-    /*0x3C*/ u16 targetVolLeft; // Q1.15, but will always be non-negative
-    /*0x3E*/ u16 targetVolRight; // Q1.15, but will always be non-negative
-    /*0x40*/ u8 reverbVol; // Q1.7
-    /*0x41*/ u8 unused1; // never read, set to 0x3f
-    /*0x44*/ struct NoteAttributes attributes;
-    /*0x54, 0x58*/ struct AdsrState adsr;
-    /*0x74, 0x7C*/ struct Portamento portamento;
-    /*0x84, 0x8C*/ struct VibratoState vibratoState;
+    /*0x0A*/ u16 samplePosFrac;
+    /*0x0C*/ s32 samplePosInt;
+    /*0x10*/ f32 portamentoFreqScale;
+    /*0x14*/ f32 vibratoFreqScale;
+    /*0x18*/ struct AudioBankSound *sound;
+    /*0x1C*/ struct SequenceChannelLayer *prevParentLayer;
+    /*0x20*/ struct SequenceChannelLayer *parentLayer;
+    /*0x24*/ struct SequenceChannelLayer *wantedParentLayer;
+    /*0x28*/ struct NoteSynthesisBuffers *synthesisBuffers;
+    /*0x2C*/ f32 frequency;
+    /*0x30*/ u16 targetVolLeft; // Q1.15, but will always be non-negative
+    /*0x32*/ u16 targetVolRight; // Q1.15, but will always be non-negative
+    /*0x34*/ struct NoteAttributes attributes;
+    /*0x44*/ struct AdsrState adsr;
+    /*0x64*/ struct Portamento portamento;
+    /*0x74*/ struct VibratoState vibratoState;
+    /*0x8C*/ struct AudioListItem listItem;
     /*0x9C*/ s16 curVolLeft; // Q1.15, but will always be non-negative
     /*0x9E*/ s16 curVolRight; // Q1.15, but will always be non-negative
-    /*0xA0*/ s16 reverbVolShifted; // Q1.15
-    /*0xA2*/ s16 unused2; // never read, set to 0
-    /*0xA4, 0x00*/ struct AudioListItem listItem;
-    /*          */ u8 pad2[0xc];
-}; // size = 0xC0
+#ifdef ENABLE_STEREO_HEADSET_EFFECTS
+    /*0xA0*/ u16 headsetPanRight;
+    /*0xA2*/ u16 headsetPanLeft;
+    /*0xA4*/ u16 prevHeadsetPanRight;
+    /*0xA6*/ u16 prevHeadsetPanLeft;
+    /*    */ u8 align16Padding[0x08];
+#endif
+}; // size = 0xA0, 0xB0
 #endif
 
 struct NoteSynthesisBuffers {
     s16 adpcmdecState[0x10];
     s16 finalResampleState[0x10];
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     s16 unk[0x10];
     s16 filterBuffer[0x20];
     s16 panSamplesBuffer[0x20];
@@ -714,6 +734,23 @@ struct NoteSynthesisBuffers {
 #endif
 };
 
+#ifdef BETTER_REVERB
+struct BetterReverbSettings {
+    u8 useLightweightSettings;
+    s8 downsampleRate;
+    u8 isMono;
+    u8 filterCount;
+    s16 windowSize;
+    s16 gain;
+    u8 gainIndex;
+    u8 reverbIndex;
+    u32 *delaysL;
+    u32 *delaysR;
+    u8 *reverbMultsL;
+    u8 *reverbMultsR;
+};
+#endif
+
 #ifdef VERSION_EU
 struct ReverbSettingsEU {
     u8 downsampleRate;
@@ -721,6 +758,11 @@ struct ReverbSettingsEU {
     u16 gain;
 };
 #else
+struct ReverbSettingsUS {
+    u8 downsampleRate;
+    u16 windowSize;
+    u16 gain;
+};
 struct ReverbSettingsEU {
     u8 downsampleRate; // always 1
     u8 windowSize; // To be multiplied by 16
@@ -745,12 +787,12 @@ struct AudioSessionSettingsEU {
     /* 0x0E */ u16 unk3; // always 0
     /* 0x10 */ u32 persistentSeqMem;
     /* 0x14 */ u32 persistentBankMem;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*       0x18 */ u32 unk18; // always 0
 #endif
     /* 0x18, 0x1C */ u32 temporarySeqMem;
     /* 0x1C, 0x20 */ u32 temporaryBankMem;
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
     /*       0x24 */ u32 unk24; // always 0
     /*       0x28 */ u32 unkMem28; // always 0
     /*       0x2C */ u32 unkMem2C; // always 0
@@ -760,15 +802,12 @@ struct AudioSessionSettingsEU {
 struct AudioSessionSettings {
     /*0x00*/ u32 frequency;
     /*0x04*/ u8 maxSimultaneousNotes;
-    /*0x05*/ u8 reverbDownsampleRate; // always 1
-    /*0x06*/ u16 reverbWindowSize;
-    /*0x08*/ u16 reverbGain;
-    /*0x0A*/ u16 volume;
-    /*0x0C*/ u32 persistentSeqMem;
-    /*0x10*/ u32 persistentBankMem;
-    /*0x14*/ u32 temporarySeqMem;
-    /*0x18*/ u32 temporaryBankMem;
-}; // size = 0x1C
+    /*0x06*/ u16 volume;
+    /*0x08*/ u32 persistentSeqMem;
+    /*0x0C*/ u32 persistentBankMem;
+    /*0x10*/ u32 temporarySeqMem;
+    /*0x14*/ u32 temporaryBankMem;
+}; // size = 0x18
 
 struct AudioBufferParametersEU {
     /*0x00*/ s16 presetUnk4; // audio frames per vsync?
@@ -825,7 +864,7 @@ struct EuAudioCmd {
     } u2;
 };
 
-#if defined(VERSION_SH) || defined(VERSION_CN)
+#ifdef VERSION_SH
 struct PendingDmaSample {
     u8 medium;
     u8 bankId;
@@ -848,7 +887,6 @@ struct UnkStruct80343D00 {
 };
 
 // in external.c
-extern s32 D_SH_80343CF0;
 extern struct UnkStruct80343D00 D_SH_80343D00;
 #endif
 
