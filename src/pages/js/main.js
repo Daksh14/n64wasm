@@ -1,25 +1,80 @@
 // This is the main file which configures the emulator and manages the ROM(s)
 
-function init() {
-	var Module = {};
+import { configString } from "./config.js";
+import { FS, Module } from "./n64wasm.js";
+
+export const init = () => {
 	Module["canvas"] = document.getElementById("canvas");
-	window["Module"] = Module;
-}
+	$("#p").style.display = "none";
+};
 
-function initHandler() {
-	console.log("Emulator is initalized");
-}
+export const $ = (s) => document.querySelector(s);
 
-function processPrintStatement(text) {
-	console.log(text);
-}
+export const loadEmulatorWithOg = () => {
+	loadShaders().then(() => {
+		loadConfig();
+		loadOgMarioRom().then(() => {
+			Module.callMain(["og_mario.v64"]);
+		});
+	});
+};
 
-function processErrStatement(text) {
-	console.err(text);
-}
+export const loadEmulatorWithCustom = () => {
+	loadShaders().then(() => {
+		loadConfig();
+		loadCustomRom().then(() => {
+			Module.callMain(["custom.v64"]);
+		});
+	});
+};
 
-async function load_og_mario_rom() {
+// Create a ROM select element
+export const romSelect = (id, imgSrc, romName) => {
+	const parent = document.createElement("div");
+
+	parent.addEventListener("click", () => {
+		window.location.href = "/emulator.html?rom=" + id;
+	});
+
+	parent.classList.add("uk-width-auto", "rom-button");
+	parent.setAttribute("id", id);
+
+	const child = document.createElement("div");
+
+	parent.classList.add("uk-inline");
+
+	const img = document.createElement("img");
+	img.src = imgSrc;
+
+	img.classList.add("uk-child-width-expand");
+
+	const overlay = document.createElement("div");
+
+	overlay.classList.add(
+		"uk-overlay",
+		"uk-animation-scale-up",
+		"uk-overlay-primary",
+		"uk-position-bottom",
+	);
+
+	const name = document.createElement("p");
+	name.innerHTML = romName;
+
+	overlay.appendChild(name);
+
+	child.appendChild(img);
+	child.appendChild(img);
+	child.appendChild(overlay);
+
+	parent.appendChild(child);
+
+	return parent;
+};
+
+// Load the OG mario ROM
+const loadOgMarioRom = async () => {
 	const response = await fetch("/og_mario");
+
 	if (!response.ok) {
 		throw new Error(`ROM fetching response status: ${response.status}`);
 	}
@@ -28,31 +83,47 @@ async function load_og_mario_rom() {
 	const byteArray = new Uint8Array(json.bytes);
 
 	FS.writeFile("og_mario.v64", byteArray);
-}
+};
 
-async function loadShaders() {
+// Load the custom rom from the server
+const loadCustomRom = async () => {
+	const response = await fetch("/custom");
+
+	if (!response.ok) {
+		throw new Error(
+			`Custom ROM fetching response status: ${response.status}`,
+		);
+	}
+
+	const json = await response.json();
+	const byteArray = new Uint8Array(json.bytes);
+
+	FS.writeFile("custom.v64", byteArray);
+};
+
+// Load the assets file into the emulator
+const loadShaders = async () => {
 	const response = await fetch("/assets/shaders.zip");
 	const bytes = new Uint8Array(await response.arrayBuffer());
 
 	FS.writeFile("assets.zip", bytes);
+};
+
+// Load the configuration of the emulator
+const loadConfig = () => {
+	const config = configString();
+	console.log(config);
 
 	FS.writeFile(
 		"config.txt",
-		"12\n13\n14\n15\n0\n2\n9\n4\n6\n5\n11\n-1\n-1\n-1\n-1\nb\nn\ny\nh\nEnter\ni\nk\nj\nl\na\nq\ne\ns\nd\n`\nArrowUp\nArrowDown\nArrowLeft\nArrowRight\n0\n0\n0\n1\n0\n0\n0\n0\n0\n0\n0\n0\n0\n",
+		config,
 	);
-}
+};
 
-function loadEmulator() {
-	loadShaders().then(() => {
-		load_og_mario_rom().then(() => {
-			Module.callMain(["og_mario.v64"]);
-		});
-	});
-}
-
+// Configure the web assembly, tell it the location of the canvas
 window["Module"] = {
-	onRuntimeInitialized: initHandler,
+	onRuntimeInitialized: init,
 	canvas: document.getElementById("canvas"),
-	print: (text) => processPrintStatement(text),
-	printErr: (text) => processErrStatement(text),
+	print: (text) => console.log(text),
+	printErr: (text) => console.err(text),
 };

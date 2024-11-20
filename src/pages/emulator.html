@@ -5,19 +5,36 @@
         <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/css/uikit.min.css">
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/js/uikit.min.js" integrity="sha512-KhwHMcNHNh3OQFgRLWBeBRZA+HM637ZvyHCYd0PJBssmR8RanPC3zYTsPR/FjQASYXNkkYpTZdFJmlAgiBnR2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+        <script type="module" src="/js/main.js"></script>
+        <script type="module">
+            import { loadEmulatorWithOg, loadEmulatorWithCustom, init, $ } from "/js/main.js";
+
+            const url = new URL(location.href);
+            const c = url.searchParams.get("rom");
+            
+            if (c == "og_mario") {
+                init();
+                loadEmulatorWithOg();
+           } else if (c == "custom_mario") {
+                init();
+                loadEmulatorWithCustom();
+           } else {
+                $("p").innerText = "No ROM(s) loaded. Redirecting";
+                $("canvas").style.display = "none";
+                
+                setTimeout(() => {
+                    location.href = "/";
+                }, 3000);
+           }
+        </script>
     </head>
 
     <body>
-        <div class="uk-container uk-container-medium uk-padding-small">
-            <h1 class="uk-heading-large uk-animation-scale-up">Games</h1>
-            <p onclick="loadEmulator()">ROM(s) loaded below</p>
+        <div class="uk-container uk-padding-small">
+            <p id="p">Loading..</p>
             <canvas class="uk-width-expand" id="canvas"></canvas>
         </div>
 
-        <script type="text/javascript" src="/js/main.js"></script>
-        <script type="text/javascript">
-            init();
-        </script>
-        <script type="text/javascript" src="/js/n64wasm.js"></script>
     </body>
 </html>

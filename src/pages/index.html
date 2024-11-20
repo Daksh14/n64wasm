@@ -11,24 +11,23 @@
         <div class="uk-container uk-container-medium uk-padding-small">
             <h1 class="uk-heading-large uk-animation-scale-up">Games</h1>
             <p>ROM(s) loaded below</p>
-            <div uk-grid>
-                <div class="uk-width-auto">
-                    <div class="uk-inline">
-                        <img src="assets/684.png" class="uk-child-width-expand">
-                        <div class="uk-overlay uk-animation-scale-up uk-overlay-primary uk-position-bottom">
-                            <p>Original Super 64 Mario</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="uk-width-auto">
-                    <div class="uk-inline">
-                        <img src="assets/688.png" class="uk-child-width-expand">
-                        <div class="uk-overlay uk-animation-scale-up uk-overlay-primary uk-position-bottom">
-                            <p>Modded Super 64 Mario</p>
-                        </div>
-                    </div>
-                </div>
+            <div uk-grid id="rom-selection">
             </div>
         </div>
+
+        <script type="module">
+           import { $, romSelect } from "/js/main.js";
+
+           const romSelection = async (endpoint) => {
+            const rom = await fetch(endpoint);
+            const json = await rom.json();
+
+            $("#rom-selection").appendChild(romSelect(json.name, json.img_url, json.description))
+           }
+
+           await romSelection("/og_mario");
+           await romSelection("/custom_mario");
+        
+        </script>
     </body>
 </html>

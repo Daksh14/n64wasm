@@ -59,9 +59,23 @@ router
     context.response.status = 200;
     context.response.type = "application/json";
     context.response.body = {
-      "name": "Super Mario 64",
+      "name": "og_mario",
       "description": "The original Super Mario 64 ROM",
-      "img_url": "/pages/assets/684.png",
+      "img_url": "/assets/684.png",
+      "bytes": Array.from(buffer),
+    };
+  })
+  .get("/custom_mario", (context) => {
+    const buffer = Deno.readFileSync(`${Deno.cwd()}/src/roms/custom.z64`);
+
+    console.log(bold("Our custom ROM loading: ") + yellow("Super Mario 64"));
+
+    context.response.status = 200;
+    context.response.type = "application/json";
+    context.response.body = {
+      "name": "custom_mario",
+      "description": "A custom Super Mario 64 ROM",
+      "img_url": "/assets/688.png",
       "bytes": Array.from(buffer),
     };
   });
