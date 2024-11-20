@@ -1,0 +1,23 @@
+<html>
+    <head>
+        <title>Single Page Application</title>
+        <link rel="stylesheet" type="text/css" href="/main.css">
+        <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/css/uikit.min.css">
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/js/uikit.min.js" integrity="sha512-KhwHMcNHNh3OQFgRLWBeBRZA+HM637ZvyHCYd0PJBssmR8RanPC3zYTsPR/FjQASYXNkkYpTZdFJmlAgiBnR2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    </head>
+
+    <body>
+        <div class="uk-container uk-container-medium uk-padding-small">
+            <h1 class="uk-heading-large uk-animation-scale-up">Games</h1>
+            <p onclick="loadEmulator()">ROM(s) loaded below</p>
+            <canvas class="uk-width-expand" id="canvas"></canvas>
+        </div>
+
+        <script type="text/javascript" src="/js/main.js"></script>
+        <script type="text/javascript">
+            init();
+        </script>
+        <script type="text/javascript" src="/js/n64wasm.js"></script>
+    </body>
+</html>

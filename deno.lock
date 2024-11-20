@@ -10,6 +10,7 @@
       "jsr:@std/crypto@^1.0": "jsr:@std/crypto@1.0.3",
       "jsr:@std/encoding@^1.0": "jsr:@std/encoding@1.0.5",
       "jsr:@std/encoding@^1.0.5": "jsr:@std/encoding@1.0.5",
+      "jsr:@std/fmt@0.223": "jsr:@std/fmt@0.223.0",
       "jsr:@std/http@^1.0": "jsr:@std/http@1.0.7",
       "jsr:@std/io@0.224": "jsr:@std/io@0.224.9",
       "jsr:@std/media-types@^1.0": "jsr:@std/media-types@1.0.3",
@@ -54,6 +55,9 @@
       },
       "@std/encoding@1.0.5": {
         "integrity": "ecf363d4fc25bd85bd915ff6733a7e79b67e0e7806334af15f4645c569fefc04"
+      },
+      "@std/fmt@0.223.0": {
+        "integrity": "6deb37794127dfc7d7bded2586b9fc6f5d50e62a8134846608baf71ffc1a5208"
       },
       "@std/http@1.0.7": {
         "integrity": "9b904fc256678a5c9759f1a53a24a3fdcc59d83dc62099bb472683b6f819194c",
@@ -248,6 +252,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@oak/oak@^17.0.0",
+      "jsr:@std/fmt@0.223",
       "jsr:@tajpouria/cors@^1.2.1"
     ]
   }
