@@ -1,0 +1,40 @@
+<html>
+    <head>
+        <title>Single Page Application</title>
+        <link rel="stylesheet" type="text/css" href="/main.css">
+        <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/css/uikit.min.css">
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/js/uikit.min.js" integrity="sha512-KhwHMcNHNh3OQFgRLWBeBRZA+HM637ZvyHCYd0PJBssmR8RanPC3zYTsPR/FjQASYXNkkYpTZdFJmlAgiBnR2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+        <script type="module" src="/js/main.js"></script>
+        <script type="module">
+            import { loadEmulatorWithOg, loadEmulatorWithCustom, init, $ } from "/js/main.js";
+
+            const url = new URL(location.href);
+            const c = url.searchParams.get("rom");
+            
+            if (c == "og_mario") {
+                init();
+                loadEmulatorWithOg();
+           } else if (c == "custom_mario") {
+                init();
+                loadEmulatorWithCustom();
+           } else {
+                $("p").innerText = "No ROM(s) loaded. Redirecting";
+                $("canvas").style.display = "none";
+                
+                setTimeout(() => {
+                    location.href = "/";
+                }, 3000);
+           }
+        </script>
+    </head>
+
+    <body>
+        <div class="uk-container uk-padding-small">
+            <p id="p">Loading..</p>
+            <canvas class="uk-width-expand" id="canvas"></canvas>
+        </div>
+
+    </body>
+</html>

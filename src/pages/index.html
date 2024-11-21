@@ -1,0 +1,33 @@
+<html>
+    <head>
+        <title>Single Page Application</title>
+        <link rel="stylesheet" type="text/css" href="/main.css">
+        <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/css/uikit.min.css">
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.21.13/js/uikit.min.js" integrity="sha512-KhwHMcNHNh3OQFgRLWBeBRZA+HM637ZvyHCYd0PJBssmR8RanPC3zYTsPR/FjQASYXNkkYpTZdFJmlAgiBnR2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    </head>
+
+    <body>
+        <div class="uk-container uk-container-medium uk-padding-small">
+            <h1 class="uk-heading-large uk-animation-scale-up">Games</h1>
+            <p>ROM(s) loaded below</p>
+            <div uk-grid id="rom-selection">
+            </div>
+        </div>
+
+        <script type="module">
+           import { $, romSelect } from "/js/main.js";
+
+           const romSelection = async (endpoint) => {
+            const rom = await fetch(endpoint);
+            const json = await rom.json();
+
+            $("#rom-selection").appendChild(romSelect(json.name, json.img_url, json.description))
+           }
+
+           await romSelection("/og_mario");
+           await romSelection("/custom_mario");
+        
+        </script>
+    </body>
+</html>
