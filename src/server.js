@@ -48,36 +48,47 @@ app.use(async (context, next) => {
   }
 });
 
+const roms = {
+  og_mario: {
+    path: `${Deno.cwd()}/src/roms/baserom.z64`,
+    description: "The original Super Mario 64 ROM",
+    img_url: "/assets/684.png",
+  },
+};
+
 // Setup ROM routes
 const router = new Router();
+
 router
-  .get("/og_mario", (context) => {
-    const buffer = Deno.readFileSync(`${Deno.cwd()}/src/roms/baserom.us.z64`);
+  .get("/roms/:rom", async (context, next) => {
+    const param = context.params.rom;
+    const locate = Object.keys(roms).includes(param);
+    console.log(locate)
+    if (!locate) {
+      context.response.status = 404;
+      await next();
+    } else {
+      const rom = roms[param];
 
-    console.log(bold("ROM loading: ") + yellow("Super Mario 64"));
+      const buffer = Deno.readFileSync(rom.path);
 
-    context.response.status = 200;
-    context.response.type = "application/json";
-    context.response.body = {
-      "name": "og_mario",
-      "description": "The original Super Mario 64 ROM",
-      "img_url": "/assets/684.png",
-      "bytes": Array.from(buffer),
-    };
+      console.log(bold("ROM loading: ") + yellow("Super Mario 64"));
+
+      context.response.status = 200;
+      context.response.type = "application/json";
+      context.response.body = {
+        "name": param,
+        "description": rom.description,
+        "img_url": rom.img_url,
+        "bytes": Array.from(buffer),
+      };
+    }
   })
-  .get("/custom_mario", (context) => {
-    const buffer = Deno.readFileSync(`${Deno.cwd()}/src/roms/custom.z64`);
-
-    console.log(bold("Our custom ROM loading: ") + yellow("Super Mario 64"));
-
+  .get("/all", (context) => {
     context.response.status = 200;
     context.response.type = "application/json";
-    context.response.body = {
-      "name": "custom_mario",
-      "description": "A custom Super Mario 64 ROM",
-      "img_url": "/assets/688.png",
-      "bytes": Array.from(buffer),
-    };
+
+    context.response.body = roms;
   });
 
 app.use(router.routes());
