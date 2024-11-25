@@ -1,6 +1,10 @@
 # N64WASM
 n64wasm our cmpsc_487w project
 
+This repo features the `mario` folder which is the modded version of original mario n64 with our own levels and characters
+
+This repo also features a web emulator which can be run and used to run the mod or any other ROM of your choice!
+
 # Web Emulator
 
 To load the User interface and web assembly emulator run the deno server
@@ -66,4 +70,4 @@ make test NO_EMULATOR=1
 
 # Licence
 
-MIT
+MPL
