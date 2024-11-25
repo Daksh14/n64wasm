@@ -8,31 +8,39 @@
 
         <script type="module" src="/js/main.js"></script>
         <script type="module">
-            import { loadEmulatorWithOg, loadEmulatorWithCustom, init, $ } from "/js/main.js";
+            import { loadEmulatorWithEndpoint, init, $ } from "/js/main.js";
 
             const url = new URL(location.href);
             const c = url.searchParams.get("rom");
-            
-            if (c == "og_mario") {
-                init();
-                loadEmulatorWithOg();
-           } else if (c == "custom_mario") {
-                init();
-                loadEmulatorWithCustom();
-           } else {
+
+            const exitAndRedirect = () => {
                 $("p").innerText = "No ROM(s) loaded. Redirecting";
                 $("canvas").style.display = "none";
                 
                 setTimeout(() => {
                     location.href = "/";
-                }, 3000);
-           }
+                }, 1000);
+            }
+
+            if (c == undefined || c == null) {
+                exitAndRedirect();
+            } else {
+                const url = new URL("/roms/" + c, document.baseURI);
+                fetch(url).then((res) => {
+                    if (!res.ok) {
+                        exitAndRedirect();
+                    }
+                })
+
+                init();
+                loadEmulatorWithEndpoint(url);
+            }
         </script>
     </head>
 
     <body>
         <div class="uk-container uk-padding-small">
-            <p id="p">Loading..</p>
+            <p id="p">No ROM(s) loaded.</p>
             <canvas class="uk-width-expand" id="canvas"></canvas>
         </div>
 

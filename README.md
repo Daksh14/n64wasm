@@ -41,32 +41,22 @@ This will spin up a local server.
 
 ## Custom ROM
 
-The roms located in the `src/roms` folder will be served
-An endpoint is also needed to be added in the server.js like this
-
+Place your rom somewhere in the `src` and folder and simply add
+entry here on the `roms` object
 ```js
-const router = new Router();
-router
-  .get("/my_n64_game_rom", (context) => {
-    const buffer = Deno.readFileSync(`${Deno.cwd()}/src/roms/rom_name.z64`);
+const roms = {
+  og_mario: {
+    path: `${Deno.cwd()}/src/roms/baserom.z64`,
+    description: "The original Super Mario 64 ROM",
+    img_url: "/assets/684.png",
+  },
+  my_rom_name: {
+    path: "path_to_rom",
+    description: "The description of the rom",
+    img_url: "/assets/image.png"
+  }
+};
 
-    context.response.type = "application/json";
-    context.response.body = {
-      "name": "my_n64_game_rom_name",
-      "description": "A description",
-      "img_url": "/assets/my_rom_game_cover_image.png",
-      "bytes": Array.from(buffer),
-    };
-  })
-```
-
-Make sure the cover image of the rom is in the `assets` folder
-
-To add UI element just add the following entry in `index.html`
-
-```js
-
-await romSelection("/my_n64_game_rom");
 ```
 
 And option to select your rom should be avaialble in the web page!

@@ -16,18 +16,15 @@
         </div>
 
         <script type="module">
-           import { $, romSelect } from "/js/main.js";
+            import { $, romSelect } from "/js/main.js";
 
-           const romSelection = async (endpoint) => {
-            const rom = await fetch(endpoint);
-            const json = await rom.json();
+            const rom = await fetch("all");
+            const allRoms = await rom.json();
 
-            $("#rom-selection").appendChild(romSelect(json.name, json.img_url, json.description))
-           }
+            for (const [key, json] of Object.entries(allRoms)) {
 
-           await romSelection("/og_mario");
-           await romSelection("/custom_mario");
-        
+                $("#rom-selection").appendChild(romSelect(key, json.img_url, json.description))
+            }  
         </script>
     </body>
 </html>
