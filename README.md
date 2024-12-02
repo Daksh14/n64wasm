@@ -7,6 +7,8 @@ This repo also features a web emulator which can be run and used to run the mod 
 
 # Web Emulator
 
+First you need deno, [install deno here ](https://docs.deno.com/runtime/getting_started/installation/)
+
 To load the User interface and web assembly emulator run the deno server
 
 ```
@@ -41,6 +43,8 @@ And option to select your rom should be available like that in the web page!
 Click on the option to start your game with the web assembly n64 emulator and enjoy your game!
 
 # Running the tests
+
+NOTE: This can only be possible in a linux environemnt or a WSL environment
 
 To install dependencies in an ubuntu or WSL system run
 
