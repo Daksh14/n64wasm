@@ -613,8 +613,31 @@ distclean: clean
 	$(PYTHON) extract_assets.py --clean
 	$(MAKE) -C $(TOOLS_DIR) clean
 
+TEST_DIR := ../tests
+TEST_SRC := $(wildcard $(TEST_DIR)/*.c)
+TEST_OBJ := $(TEST_SRC:.c=.o)
+TEST_SUITE := $(TEST_DIR)/test_suite
+
+check: $(TEST_SUITE)
+	@echo "Running test suite..."
+	$(TEST_SUITE)
+
+$(TEST_SUITE): $(TEST_OBJ)
+	@echo "Building test suite with the following files:"
+	gcc -o $@ $^
+
+$(TEST_OBJ): %.o : %.c
+	@echo "Compiling $<..."
+	gcc -c $< -o $@
+
+clean-tests:
+	rm -f $(TEST_OBJ) $(TEST_SUITE)
+
+
 test: $(ROM)
-	$(EMULATOR) $(EMU_FLAGS) $<
+	@echo "Testing ROM build..."
+	@if [ -f "$(ROM)" ]; then echo "ROM built successfully: $(ROM)"; else echo "ROM build failed"; exit 1; fi
+	@if [ "$(NO_EMULATOR)" != "1" ]; then $(EMULATOR) $(EMU_FLAGS) $<; else echo "Skipping emulator tests (NO_EMULATOR=1)"; fi
 
 test-pj64: $(ROM)
 	wine ~/Desktop/new64/Project64.exe $<
