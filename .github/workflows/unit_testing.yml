@@ -1,0 +1,54 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: [ "develop" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential check
+
+      - name: Install MIPS toolchain
+        run: |
+          sudo apt-get install -y gcc-mips-linux-gnu binutils-mips-linux-gnu
+
+      - name: Download ROM to mario directory
+        run: |
+          mkdir -p mario  # Ensure the mario directory exists
+          curl -L -o "mario/baserom.us.z64" "https://github.com/jb1361/Super-Mario-64-AI/raw/development/Super%20Mario%2064%20(USA).z64"
+
+      - name: Build
+        run: |
+          cd mario
+          make
+
+      - name: Run Unit Tests (make check)
+        run: |
+          cd mario
+          make check
+
+      - name: Run Additional Tests (make test)
+        run: |
+          cd mario
+          make test NO_EMULATOR=1
+
+      - name: Clean Tests
+        run: |
+          cd mario
+          make clean-tests
+          
+
+
+          
